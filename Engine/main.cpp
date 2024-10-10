@@ -353,8 +353,10 @@ int main()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Graphics Pipeline
-    std::vector<char> VertexShaderCode = ReadFile("/Users/lyubomir.kostadinov/Projects/private/vulkan_tutorial/shaders/vert.spv");
-    std::vector<char> FragmentShaderCode = ReadFile("/Users/lyubomir.kostadinov/Projects/private/vulkan_tutorial/shaders/frag.spv");
+
+    //TODO(Lyubomir): Relative Paths!
+    std::vector<char> VertexShaderCode = ReadFile("/Users/lyubomir.kostadinov/Projects/private/handmade_vulkan/shaders/vertex_default_shader.spv");
+    std::vector<char> FragmentShaderCode = ReadFile("/Users/lyubomir.kostadinov/Projects/private/handmade_vulkan/shaders/fragment_default_shader.spv");
 
     VkShaderModuleCreateInfo VertexShaderCreateInfo = {};
     VertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
