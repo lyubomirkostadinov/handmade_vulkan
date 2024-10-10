@@ -1,9 +1,16 @@
 #include "platform.h"
 #include "vulkan/vulkan_core.h"
+#include "../libs/glm/glm.hpp"
 #include <vector>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 uint32 CurrentFrame = 0;
+
+struct vertex
+{
+    glm::vec2 Position;
+    glm::vec3 Color;
+};
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT MessageType,
@@ -19,6 +26,31 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityF
 
 int main()
 {
+    const uint32 NumVertices = 3;
+    vertex Vertices[NumVertices] = {};
+    Vertices[0].Position = glm::vec2(0.0f, -0.5f);
+    Vertices[0].Color = glm::vec3(1.0f, 1.0f, 1.0f);
+    Vertices[1].Position = glm::vec2(0.5f, 0.5f);
+    Vertices[1].Color = glm::vec3(1.0f, 1.0f, 1.0f);
+    Vertices[2].Position = glm::vec2(-0.5f, 0.5f);
+    Vertices[2].Color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+    VkVertexInputBindingDescription BindingDescription = {};
+    BindingDescription.binding = 0;
+    BindingDescription.stride = sizeof(vertex);
+    BindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription AttributeDescriptions[2] = {};
+    AttributeDescriptions[0].binding = 0;
+    AttributeDescriptions[0].location = 0;
+    AttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    AttributeDescriptions[0].offset = offsetof(vertex, Position);
+
+    AttributeDescriptions[1].binding = 0;
+    AttributeDescriptions[1].location = 1;
+    AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    AttributeDescriptions[1].offset = offsetof(vertex, Color);
+
     Initialize();
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -396,8 +428,10 @@ int main()
 
     VkPipelineVertexInputStateCreateInfo VertexInputInfo = {};
     VertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    VertexInputInfo.vertexBindingDescriptionCount = 0;
-    VertexInputInfo.vertexAttributeDescriptionCount = 0;
+    VertexInputInfo.vertexBindingDescriptionCount = 1;
+    VertexInputInfo.vertexAttributeDescriptionCount = 2;
+    VertexInputInfo.pVertexBindingDescriptions = &BindingDescription;
+    VertexInputInfo.pVertexAttributeDescriptions = AttributeDescriptions;
 
     VkPipelineInputAssemblyStateCreateInfo InputAssembly = {};
     InputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -528,6 +562,62 @@ int main()
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Vertex Buffer
+    VkBufferCreateInfo VertexBufferInfo = {};
+    VertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    VertexBufferInfo.size = sizeof(Vertices[0]) * NumVertices;
+    VertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    VertexBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkBuffer VertexBuffer;
+    if (vkCreateBuffer(Device, &VertexBufferInfo, nullptr, &VertexBuffer) != VK_SUCCESS)
+    {
+        printf("Failed to create vertex buffer!\n");
+    }
+
+    VkMemoryRequirements MemoryRequirements;
+    vkGetBufferMemoryRequirements(Device, VertexBuffer, &MemoryRequirements);
+
+    //NOTE(Lyubomir): Find Memory Type And Allocate Memory
+    VkPhysicalDeviceMemoryProperties MemoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
+
+    uint32 MemoryTypeResult = -1;
+    uint32 TypeFilter = MemoryRequirements.memoryTypeBits;
+    VkMemoryPropertyFlags Properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    for (uint32 Index = 0; Index < MemoryProperties.memoryTypeCount; ++Index)
+    {
+        if ((TypeFilter & (1 << Index) && (MemoryProperties.memoryTypes[Index].propertyFlags & Properties) == Properties))
+        {
+            MemoryTypeResult = Index;
+            break;
+        }
+    }
+
+    if(MemoryTypeResult == -1)
+    {
+        printf("Failed to find suitable memory type!\n");
+    }
+
+    VkMemoryAllocateInfo MemoryAllocateInfo = {};
+    MemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    MemoryAllocateInfo.allocationSize = MemoryRequirements.size;
+    MemoryAllocateInfo.memoryTypeIndex = MemoryTypeResult;
+
+    VkDeviceMemory VertexBufferMemory;
+    if (vkAllocateMemory(Device, &MemoryAllocateInfo, nullptr, &VertexBufferMemory) != VK_SUCCESS)
+    {
+        printf("Failed to allocate vertex buffer memory!\n");
+    }
+
+    vkBindBufferMemory(Device, VertexBuffer, VertexBufferMemory, 0);
+
+    void* Data;
+    vkMapMemory(Device, VertexBufferMemory, 0, VertexBufferInfo.size, 0, &Data);
+    memcpy(Data, Vertices, (size_t) VertexBufferInfo.size);
+    vkUnmapMemory(Device, VertexBufferMemory);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
     std::vector<VkCommandBuffer> CommandBuffers;
     CommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -626,7 +716,12 @@ int main()
         Scissor.extent = SwapChainExtent;
 
         vkCmdSetScissor(CommandBuffers[CurrentFrame], 0, 1, &Scissor);
-        vkCmdDraw(CommandBuffers[CurrentFrame], 3, 1, 0, 0);
+
+        VkBuffer VertexBuffers[] = {VertexBuffer};
+        VkDeviceSize Offsets[] = {0};
+        vkCmdBindVertexBuffers(CommandBuffers[CurrentFrame], 0, 1, VertexBuffers, Offsets);
+
+        vkCmdDraw(CommandBuffers[CurrentFrame], NumVertices, 1, 0, 0);
         vkCmdEndRenderPass(CommandBuffers[CurrentFrame]);
 
         if (vkEndCommandBuffer(CommandBuffers[CurrentFrame]) != VK_SUCCESS)
@@ -698,6 +793,11 @@ int main()
     }
 
     vkDestroySwapchainKHR(Device, SwapChain, nullptr);
+
+    vkDestroyBuffer(Device, VertexBuffer, nullptr);
+
+    vkFreeMemory(Device, VertexBufferMemory, nullptr);
+
     vkDestroyDevice(Device, nullptr);
 
     if (EnableValidationLayers)
