@@ -58,13 +58,14 @@ void DestroyWindow(window* Window);
 void ShowWindow(window* Window);
 void HideWindow(window* Window);
 
+//TODO(Lyubomir): Platform layer input handling
 void ProcessKey(void);
 void ProcessButton(void);
 void ProcessMouseMove(void);
 void ProcessMouseWheel(void);
 
 
-//TODO(Lyubomir): Platform layer platform handling
+//TODO(Lyubomir): Platform layer file handling
 static std::vector<char> ReadFile(const std::string& filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);

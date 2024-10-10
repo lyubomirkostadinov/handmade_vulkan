@@ -3,6 +3,8 @@
 #include "../libs/glm/glm.hpp"
 #include <vector>
 
+//TODO(Lyubomir): Math Library and API Types
+
 #define MAX_FRAMES_IN_FLIGHT 2
 uint32 CurrentFrame = 0;
 
