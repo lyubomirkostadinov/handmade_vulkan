@@ -728,7 +728,7 @@ int main()
 
         if (vkEndCommandBuffer(CommandBuffers[CurrentFrame]) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to record command buffer!");
+            printf("Failed to record command buffer!\n");
         }
 
         VkSubmitInfo SubmitInfo = {};
