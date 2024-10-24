@@ -31,11 +31,11 @@ int main()
     const uint32 NumVertices = 3;
     vertex Vertices[NumVertices] = {};
     Vertices[0].Position = glm::vec2(0.0f, -0.5f);
-    Vertices[0].Color = glm::vec3(1.0f, 1.0f, 1.0f);
+    Vertices[0].Color = glm::vec3(0.0f, 1.0f, 0.0f);
     Vertices[1].Position = glm::vec2(0.5f, 0.5f);
-    Vertices[1].Color = glm::vec3(1.0f, 1.0f, 1.0f);
+    Vertices[1].Color = glm::vec3(1.0f, 0.0f, 0.0f);
     Vertices[2].Position = glm::vec2(-0.5f, 0.5f);
-    Vertices[2].Color = glm::vec3(1.0f, 1.0f, 1.0f);
+    Vertices[2].Color = glm::vec3(0.0f, 0.0f, 1.0f);
 
     VkVertexInputBindingDescription BindingDescription = {};
     BindingDescription.binding = 0;
@@ -93,7 +93,7 @@ int main()
     VkDebugUtilsMessengerCreateInfoEXT DebugCreateInfo = {};
     if (EnableValidationLayers)
     {
-        InstanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(ValidationLayers.size());
+        InstanceCreateInfo.enabledLayerCount = static_cast<uint32>(ValidationLayers.size());
         InstanceCreateInfo.ppEnabledLayerNames = ValidationLayers.data();
 
         DebugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -200,17 +200,17 @@ int main()
     VkDeviceCreateInfo DeviceCreateInfo = {};
     DeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-    DeviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(QueueCreateInfos.size());
+    DeviceCreateInfo.queueCreateInfoCount = static_cast<uint32>(QueueCreateInfos.size());
     DeviceCreateInfo.pQueueCreateInfos = QueueCreateInfos.data();
 
     DeviceCreateInfo.pEnabledFeatures = &DeviceFeatures;
 
-    DeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(DeviceExtensions.size());
+    DeviceCreateInfo.enabledExtensionCount = static_cast<uint32>(DeviceExtensions.size());
     DeviceCreateInfo.ppEnabledExtensionNames = DeviceExtensions.data();
 
     if (EnableValidationLayers)
     {
-        DeviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(ValidationLayers.size());
+        DeviceCreateInfo.enabledLayerCount = static_cast<uint32>(ValidationLayers.size());
         DeviceCreateInfo.ppEnabledLayerNames = ValidationLayers.data();
     }
     else
@@ -237,14 +237,14 @@ int main()
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(PhysicalDevice, Surface, &Capabilities);
 
-    uint32_t FormatCount;
+    uint32 FormatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(PhysicalDevice, Surface, &FormatCount, nullptr);
     if (FormatCount != 0)
     {
         Formats.resize(FormatCount);
         vkGetPhysicalDeviceSurfaceFormatsKHR(PhysicalDevice, Surface, &FormatCount, Formats.data());
     }
-    uint32_t PresentModeCount;
+    uint32 PresentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(PhysicalDevice, Surface, &PresentModeCount, nullptr);
     if (PresentModeCount != 0)
     {
@@ -276,7 +276,7 @@ int main()
     //TODO(Lyubomir): Maybe resize the extent to match the framebuffer size?
     VkExtent2D Extent = Capabilities.currentExtent;
 
-    uint32_t ImageCount = Capabilities.minImageCount + 1;
+    uint32 ImageCount = Capabilities.minImageCount + 1;
     if (Capabilities.maxImageCount > 0 && ImageCount > Capabilities.maxImageCount)
     {
         ImageCount = Capabilities.maxImageCount;
@@ -318,7 +318,7 @@ int main()
     //NOTE(Lyubomir): Create Image Views
     std::vector<VkImageView> SwapChainImageViews;
     SwapChainImageViews.resize(SwapChainImages.size());
-    for (size_t i = 0; i < SwapChainImages.size(); i++)
+    for (uint32 i = 0; i < SwapChainImages.size(); i++)
     {
         VkImageViewCreateInfo ImageViewCreateInfo = {};
         ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -395,7 +395,7 @@ int main()
     VkShaderModuleCreateInfo VertexShaderCreateInfo = {};
     VertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     VertexShaderCreateInfo.codeSize = VertexShaderCode.size();
-    VertexShaderCreateInfo.pCode = reinterpret_cast<const uint32_t*>(VertexShaderCode.data());
+    VertexShaderCreateInfo.pCode = reinterpret_cast<const uint32*>(VertexShaderCode.data());
 
     VkShaderModule VertexShaderModule;
     if (vkCreateShaderModule(Device, &VertexShaderCreateInfo, nullptr, &VertexShaderModule) != VK_SUCCESS)
@@ -406,7 +406,7 @@ int main()
     VkShaderModuleCreateInfo FragmentShaderCreateInfo = {};
     FragmentShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     FragmentShaderCreateInfo.codeSize = FragmentShaderCode.size();
-    FragmentShaderCreateInfo.pCode = reinterpret_cast<const uint32_t*>(FragmentShaderCode.data());
+    FragmentShaderCreateInfo.pCode = reinterpret_cast<const uint32*>(FragmentShaderCode.data());
 
     VkShaderModule FragmentShaderModule;
     if (vkCreateShaderModule(Device, &FragmentShaderCreateInfo, nullptr, &FragmentShaderModule) != VK_SUCCESS)
@@ -482,7 +482,7 @@ int main()
 
     VkPipelineDynamicStateCreateInfo DynamicState = {};
     DynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    DynamicState.dynamicStateCount = static_cast<uint32_t>(DynamicStates.size());
+    DynamicState.dynamicStateCount = static_cast<uint32>(DynamicStates.size());
     DynamicState.pDynamicStates = DynamicStates.data();
 
     VkPipelineLayoutCreateInfo PipelineLayoutInfo = {};
@@ -616,7 +616,7 @@ int main()
 
     void* Data;
     vkMapMemory(Device, VertexBufferMemory, 0, VertexBufferInfo.size, 0, &Data);
-    memcpy(Data, Vertices, (size_t) VertexBufferInfo.size);
+    memcpy(Data, Vertices, (uint64) VertexBufferInfo.size);
     vkUnmapMemory(Device, VertexBufferMemory);
 
     //////////////////////////////////////////////////////////////////////////////////////////
