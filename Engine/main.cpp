@@ -26,6 +26,97 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityF
     return VK_FALSE;
 }
 
+//TODO(Lyubomir): Move to graphics.h
+VkPhysicalDevice PhysicalDevice = 0;
+VkDevice Device;
+VkCommandPool CommandPool;
+VkBuffer VertexBuffer;
+VkDeviceMemory VertexBufferMemory;
+VkQueue GraphicsQueue;
+VkQueue PresentQueue;
+
+uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties)
+{
+        VkPhysicalDeviceMemoryProperties MemoryProperties;
+        vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
+
+        for (uint32_t Index = 0; Index < MemoryProperties.memoryTypeCount; ++Index)
+        {
+            if ((TypeFilter & (1 << Index)) && (MemoryProperties.memoryTypes[Index].propertyFlags & Properties) == Properties)
+            {
+                return Index;
+            }
+        }
+
+        printf("Failed to find suitable memory type!\n");
+        return MemoryProperties.memoryTypeCount + 1;
+}
+
+void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyFlags MemoryProperties, VkBuffer& Buffer, VkDeviceMemory& BufferMemory)
+{
+    VkBufferCreateInfo BufferInfo = {};
+    BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    BufferInfo.size = Size;
+    BufferInfo.usage = Usage;
+    BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(Device, &BufferInfo, nullptr, &Buffer) != VK_SUCCESS)
+    {
+        printf("Failed to create buffer!\n");
+    }
+
+    VkMemoryRequirements MemoryRequirements;
+    vkGetBufferMemoryRequirements(Device, Buffer, &MemoryRequirements);
+
+    VkMemoryAllocateInfo AllocateInfo = {};
+    AllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    AllocateInfo.allocationSize = MemoryRequirements.size;
+    AllocateInfo.memoryTypeIndex = FindMemoryType(MemoryRequirements.memoryTypeBits, MemoryProperties);
+
+    if (vkAllocateMemory(Device, &AllocateInfo, nullptr, &BufferMemory) != VK_SUCCESS)
+    {
+        printf("Failed to allocate buffer memory!\n");
+    }
+
+    vkBindBufferMemory(Device, Buffer, BufferMemory, 0);
+}
+
+void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size)
+{
+    VkCommandBufferAllocateInfo AllocateInfo = {};
+    AllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    AllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    AllocateInfo.commandPool = CommandPool;
+    AllocateInfo.commandBufferCount = 1;
+
+    VkCommandBuffer CommandBuffer;
+    vkAllocateCommandBuffers(Device, &AllocateInfo, &CommandBuffer);
+
+    VkCommandBufferBeginInfo BeginInfo = {};
+    BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
+
+    VkBufferCopy CopyRegion = {};
+    CopyRegion.srcOffset = 0; // Optional
+    CopyRegion.dstOffset = 0; // Optional
+    CopyRegion.size = Size;
+    vkCmdCopyBuffer(CommandBuffer, SourceBuffer, DestinationBuffer, 1, &CopyRegion);
+
+    vkEndCommandBuffer(CommandBuffer);
+
+    VkSubmitInfo SubmitInfo = {};
+    SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    SubmitInfo.commandBufferCount = 1;
+    SubmitInfo.pCommandBuffers = &CommandBuffer;
+
+    vkQueueSubmit(GraphicsQueue, 1, &SubmitInfo, 0);
+    vkQueueWaitIdle(GraphicsQueue);
+
+    vkFreeCommandBuffers(Device, CommandPool, 1, &CommandBuffer);
+}
+
 int main()
 {
     const uint32 NumVertices = 3;
@@ -168,8 +259,6 @@ int main()
     std::vector<VkPhysicalDevice> Devices(DeviceCount);
     vkEnumeratePhysicalDevices(Instance, &DeviceCount, Devices.data());
 
-    VkPhysicalDevice PhysicalDevice = 0;
-
     //TODO(Lyubomir): Pick the best GPU, not the first available.
     if (Devices.size() > 0)
     {
@@ -218,14 +307,11 @@ int main()
         DeviceCreateInfo.enabledLayerCount = 0;
     }
 
-    VkDevice Device;
     if (vkCreateDevice(PhysicalDevice, &DeviceCreateInfo, nullptr, &Device) != VK_SUCCESS)
     {
         printf("Failed to create logical device!\n");
     }
 
-    VkQueue GraphicsQueue;
-    VkQueue PresentQueue;
     vkGetDeviceQueue(Device, 0, 0, &GraphicsQueue);
     vkGetDeviceQueue(Device, 0, 0, &PresentQueue);
 
@@ -557,7 +643,6 @@ int main()
     PoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     PoolInfo.queueFamilyIndex = 0;
 
-    VkCommandPool CommandPool;
     if (vkCreateCommandPool(Device, &PoolInfo, nullptr, &CommandPool) != VK_SUCCESS)
     {
         printf("Failed to create command pool!\n");
@@ -565,59 +650,32 @@ int main()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vertex Buffer
-    VkBufferCreateInfo VertexBufferInfo = {};
-    VertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    VertexBufferInfo.size = sizeof(Vertices[0]) * NumVertices;
-    VertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    VertexBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkDeviceSize BufferSize = sizeof(Vertices[0]) * NumVertices;
 
-    VkBuffer VertexBuffer;
-    if (vkCreateBuffer(Device, &VertexBufferInfo, nullptr, &VertexBuffer) != VK_SUCCESS)
-    {
-        printf("Failed to create vertex buffer!\n");
-    }
+    VkBuffer StagingBuffer;
+    VkDeviceMemory StagingBufferMemory;
 
-    VkMemoryRequirements MemoryRequirements;
-    vkGetBufferMemoryRequirements(Device, VertexBuffer, &MemoryRequirements);
-
-    //NOTE(Lyubomir): Find Memory Type And Allocate Memory
-    VkPhysicalDeviceMemoryProperties MemoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
-
-    uint32 MemoryTypeResult = -1;
-    uint32 TypeFilter = MemoryRequirements.memoryTypeBits;
-    VkMemoryPropertyFlags Properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    for (uint32 Index = 0; Index < MemoryProperties.memoryTypeCount; ++Index)
-    {
-        if ((TypeFilter & (1 << Index) && (MemoryProperties.memoryTypes[Index].propertyFlags & Properties) == Properties))
-        {
-            MemoryTypeResult = Index;
-            break;
-        }
-    }
-
-    if(MemoryTypeResult == -1)
-    {
-        printf("Failed to find suitable memory type!\n");
-    }
-
-    VkMemoryAllocateInfo MemoryAllocateInfo = {};
-    MemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    MemoryAllocateInfo.allocationSize = MemoryRequirements.size;
-    MemoryAllocateInfo.memoryTypeIndex = MemoryTypeResult;
-
-    VkDeviceMemory VertexBufferMemory;
-    if (vkAllocateMemory(Device, &MemoryAllocateInfo, nullptr, &VertexBufferMemory) != VK_SUCCESS)
-    {
-        printf("Failed to allocate vertex buffer memory!\n");
-    }
-
-    vkBindBufferMemory(Device, VertexBuffer, VertexBufferMemory, 0);
+    CreateBuffer(BufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 StagingBuffer, StagingBufferMemory);
 
     void* Data;
-    vkMapMemory(Device, VertexBufferMemory, 0, VertexBufferInfo.size, 0, &Data);
-    memcpy(Data, Vertices, (uint64) VertexBufferInfo.size);
-    vkUnmapMemory(Device, VertexBufferMemory);
+    vkMapMemory(Device, StagingBufferMemory, 0, BufferSize, 0, &Data);
+    memcpy(Data, Vertices, (uint64)BufferSize);
+    vkUnmapMemory(Device, StagingBufferMemory);
+
+    CreateBuffer(BufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 VertexBuffer, VertexBufferMemory);
+
+    CopyBuffer(StagingBuffer, VertexBuffer, BufferSize);
+
+    vkDestroyBuffer(Device, StagingBuffer, nullptr);
+    vkFreeMemory(Device, StagingBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
