@@ -16,6 +16,14 @@ struct vertex
     glm::vec3 Color;
 };
 
+struct uniform_buffer
+{
+    //TODO(Lyubomir): Camera
+    glm::mat4 ModelMatrix;
+    glm::mat4 ViewMatrix;
+    glm::mat4 ProjectionMatrix;
+};
+
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT MessageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT* CallbackData,
@@ -486,6 +494,26 @@ int main()
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Descriptor Set Layout For Uniform Buffer
+    VkDescriptorSetLayoutBinding UniformBufferLayoutBinding = {};
+    UniformBufferLayoutBinding.binding = 0;
+    UniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    UniformBufferLayoutBinding.descriptorCount = 1;
+    UniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayout DescriptorSetLayout;
+
+    VkDescriptorSetLayoutCreateInfo UniformDescriptorLayoutInfo = {};
+    UniformDescriptorLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    UniformDescriptorLayoutInfo.bindingCount = 1;
+    UniformDescriptorLayoutInfo.pBindings = &UniformBufferLayoutBinding;
+
+    if (vkCreateDescriptorSetLayout(Device, &UniformDescriptorLayoutInfo, nullptr, &DescriptorSetLayout) != VK_SUCCESS)
+    {
+        printf("Failed to create descriptor set layout!\n");
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Graphics Pipeline
 
     //TODO(Lyubomir): Relative Paths!
@@ -587,7 +615,8 @@ int main()
 
     VkPipelineLayoutCreateInfo PipelineLayoutInfo = {};
     PipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    PipelineLayoutInfo.setLayoutCount = 0;
+    PipelineLayoutInfo.setLayoutCount = 1;
+    PipelineLayoutInfo.pSetLayouts = &DescriptorSetLayout;
     PipelineLayoutInfo.pushConstantRangeCount = 0;
 
     VkPipelineLayout PipelineLayout;
@@ -898,6 +927,8 @@ int main()
     }
 
     vkDestroySwapchainKHR(Device, SwapChain, nullptr);
+
+    vkDestroyDescriptorSetLayout(Device, DescriptorSetLayout, nullptr);
 
     vkDestroyBuffer(Device, IndexBuffer, nullptr);
 
