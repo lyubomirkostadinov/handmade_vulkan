@@ -1,6 +1,8 @@
 #include "platform.h"
 #include "vulkan/vulkan_core.h"
 #include "../libs/glm/glm.hpp"
+
+//TODO(Lyubomir): Stay away from STD!
 #include <vector>
 
 //TODO(Lyubomir): Math Library and API Types
@@ -30,10 +32,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityF
 VkPhysicalDevice PhysicalDevice = 0;
 VkDevice Device;
 VkCommandPool CommandPool;
-VkBuffer VertexBuffer;
-VkDeviceMemory VertexBufferMemory;
 VkQueue GraphicsQueue;
 VkQueue PresentQueue;
+VkBuffer VertexBuffer;
+VkDeviceMemory VertexBufferMemory;
+VkBuffer IndexBuffer;
+VkDeviceMemory IndexBufferMemory;
 
 uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties)
 {
@@ -73,6 +77,10 @@ void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyF
     AllocateInfo.allocationSize = MemoryRequirements.size;
     AllocateInfo.memoryTypeIndex = FindMemoryType(MemoryRequirements.memoryTypeBits, MemoryProperties);
 
+    //NOTE(Lyubomir): The maximum number of simultaneous memory allocations is limited by the maxMemoryAllocationCount
+    // physical device limit, which may be as low as 4096 even on high end hardware like an NVIDIA GTX 1080.
+    // The right way to allocate memory for a large number of objects at the same time is to create a custom allocator
+    // that splits up a single allocation among many different objects by using the offset parameters.
     if (vkAllocateMemory(Device, &AllocateInfo, nullptr, &BufferMemory) != VK_SUCCESS)
     {
         printf("Failed to allocate buffer memory!\n");
@@ -119,14 +127,20 @@ void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize 
 
 int main()
 {
-    const uint32 NumVertices = 3;
+    const uint32 NumVertices = 4;
+    const uint32 NumIndices = 6;
+
     vertex Vertices[NumVertices] = {};
-    Vertices[0].Position = glm::vec2(0.0f, -0.5f);
-    Vertices[0].Color = glm::vec3(0.0f, 1.0f, 0.0f);
-    Vertices[1].Position = glm::vec2(0.5f, 0.5f);
-    Vertices[1].Color = glm::vec3(1.0f, 0.0f, 0.0f);
-    Vertices[2].Position = glm::vec2(-0.5f, 0.5f);
+    Vertices[0].Position = glm::vec2(-0.5f, -0.5f);
+    Vertices[0].Color = glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[1].Position = glm::vec2(0.5f, -0.5f);
+    Vertices[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[2].Position = glm::vec2(0.5f, 0.5f);
     Vertices[2].Color = glm::vec3(0.0f, 0.0f, 1.0f);
+    Vertices[3].Position = glm::vec2(-0.5f, 0.5f);
+    Vertices[3].Color = glm::vec3(1.0f, 1.0f, 0.0f);
+
+    uint32 Indices[NumIndices] = {0, 1, 2, 2, 3, 0};
 
     VkVertexInputBindingDescription BindingDescription = {};
     BindingDescription.binding = 0;
@@ -650,32 +664,61 @@ int main()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vertex Buffer
-    VkDeviceSize BufferSize = sizeof(Vertices[0]) * NumVertices;
+    VkDeviceSize VertexBufferSize = sizeof(Vertices[0]) * NumVertices;
 
-    VkBuffer StagingBuffer;
-    VkDeviceMemory StagingBufferMemory;
+    VkBuffer StagingVertexBuffer;
+    VkDeviceMemory StagingVertexBufferMemory;
 
-    CreateBuffer(BufferSize,
+    CreateBuffer(VertexBufferSize,
                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 StagingBuffer, StagingBufferMemory);
+                 StagingVertexBuffer, StagingVertexBufferMemory);
 
-    void* Data;
-    vkMapMemory(Device, StagingBufferMemory, 0, BufferSize, 0, &Data);
-    memcpy(Data, Vertices, (uint64)BufferSize);
-    vkUnmapMemory(Device, StagingBufferMemory);
+    void* VertexBufferData;
+    vkMapMemory(Device, StagingVertexBufferMemory, 0, VertexBufferSize, 0, &VertexBufferData);
+    memcpy(VertexBufferData, Vertices, (uint64)VertexBufferSize);
+    vkUnmapMemory(Device, StagingVertexBufferMemory);
 
-    CreateBuffer(BufferSize,
+    CreateBuffer(VertexBufferSize,
                  VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                  VertexBuffer, VertexBufferMemory);
 
-    CopyBuffer(StagingBuffer, VertexBuffer, BufferSize);
+    CopyBuffer(StagingVertexBuffer, VertexBuffer, VertexBufferSize);
 
-    vkDestroyBuffer(Device, StagingBuffer, nullptr);
-    vkFreeMemory(Device, StagingBufferMemory, nullptr);
+    vkDestroyBuffer(Device, StagingVertexBuffer, nullptr);
+    vkFreeMemory(Device, StagingVertexBufferMemory, nullptr);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Index Buffer
+    VkDeviceSize IndexBufferSize = sizeof(Indices[0]) * NumIndices;
+
+    VkBuffer StagingIndexBuffer;
+    VkDeviceMemory StagingIndexBufferMemory;
+
+    CreateBuffer(IndexBufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 StagingIndexBuffer, StagingIndexBufferMemory);
+
+    void* IndexBufferData;
+    vkMapMemory(Device, StagingIndexBufferMemory, 0, IndexBufferSize, 0, &IndexBufferData);
+    memcpy(IndexBufferData, Indices, (uint64)IndexBufferSize);
+    vkUnmapMemory(Device, StagingIndexBufferMemory);
+
+    CreateBuffer(IndexBufferSize,
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                 VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 IndexBuffer, IndexBufferMemory);
+
+    CopyBuffer(StagingIndexBuffer, IndexBuffer, IndexBufferSize);
+
+    vkDestroyBuffer(Device, StagingIndexBuffer, nullptr);
+    vkFreeMemory(Device, StagingIndexBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
@@ -781,7 +824,9 @@ int main()
         VkDeviceSize Offsets[] = {0};
         vkCmdBindVertexBuffers(CommandBuffers[CurrentFrame], 0, 1, VertexBuffers, Offsets);
 
-        vkCmdDraw(CommandBuffers[CurrentFrame], NumVertices, 1, 0, 0);
+        vkCmdBindIndexBuffer(CommandBuffers[CurrentFrame], IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        vkCmdDrawIndexed(CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
         vkCmdEndRenderPass(CommandBuffers[CurrentFrame]);
 
         if (vkEndCommandBuffer(CommandBuffers[CurrentFrame]) != VK_SUCCESS)
@@ -853,6 +898,10 @@ int main()
     }
 
     vkDestroySwapchainKHR(Device, SwapChain, nullptr);
+
+    vkDestroyBuffer(Device, IndexBuffer, nullptr);
+
+    vkFreeMemory(Device, IndexBufferMemory, nullptr);
 
     vkDestroyBuffer(Device, VertexBuffer, nullptr);
 
