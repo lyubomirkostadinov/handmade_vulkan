@@ -828,15 +828,35 @@ int main()
         PollEvents();
 
         vkWaitForFences(Device, 1, &InFlightFences[CurrentFrame], VK_TRUE, UINT64_MAX);
-        vkResetFences(Device, 1, &InFlightFences[CurrentFrame]);
 
         //TODO(Lyubomir): Handle SwapChain recreation when the window size changes!!!
 
         uint32_t ImageIndex;
         vkAcquireNextImageKHR(Device, SwapChain, UINT64_MAX, ImageAvailableSemaphores[CurrentFrame], 0, &ImageIndex);
 
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //NOTE(Lyubomir): Update Uniform Buffer
+        static auto StartTime = std::chrono::high_resolution_clock::now();
+        auto CurrentTime = std::chrono::high_resolution_clock::now();
+        float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
+
+        uniform_buffer UniformBuffer = {};
+        UniformBuffer.ModelMatrix = glm::rotate(glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        UniformBuffer.ViewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(45.0f), SwapChainExtent.width / (float) SwapChainExtent.height, 0.1f, 10.0f);
+        UniformBuffer.ProjectionMatrix[1][1] *= -1;
+
+        memcpy(UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //NOTE(Lyubomir): Reset Fences And Command Buffer
+
+        vkResetFences(Device, 1, &InFlightFences[CurrentFrame]);
+
         vkResetCommandBuffer(CommandBuffers[CurrentFrame], 0);
 
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //NOTE(Lyubomir): Record Command Buffer
         VkCommandBufferBeginInfo BeginInfo = {};
         BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         BeginInfo.flags = 0; // Optional
@@ -891,20 +911,6 @@ int main()
         {
             printf("Failed to record command buffer!\n");
         }
-
-        //////////////////////////////////////////////////////////////////////////////////////////
-        //NOTE(Lyubomir): Update Uniform Buffer
-        static auto StartTime = std::chrono::high_resolution_clock::now();
-        auto CurrentTime = std::chrono::high_resolution_clock::now();
-        float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
-
-        uniform_buffer UniformBuffer = {};
-        UniformBuffer.ModelMatrix = glm::rotate(glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        UniformBuffer.ViewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(45.0f), SwapChainExtent.width / (float) SwapChainExtent.height, 0.1f, 10.0f);
-        UniformBuffer.ProjectionMatrix[1][1] *= -1;
-
-        memcpy(UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
 
         //////////////////////////////////////////////////////////////////////////////////////////
         //NOTE(Lyubomir): Submit Frame
