@@ -1,6 +1,12 @@
+
 #include "platform.h"
 #include "vulkan/vulkan_core.h"
+
+#define GLM_FORCE_RADIANS
 #include "../libs/glm/glm.hpp"
+#include "../libs/glm/gtc/matrix_transform.hpp""
+
+#include <chrono>
 
 //TODO(Lyubomir): Stay away from STD!
 #include <vector>
@@ -750,6 +756,29 @@ int main()
     vkFreeMemory(Device, StagingIndexBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Uniform Buffers
+    std::vector<VkBuffer> UniformBuffers;
+    std::vector<VkDeviceMemory> UniformBuffersMemory;
+    std::vector<void*> UniformBuffersMapped;
+
+    VkDeviceSize BufferSize = sizeof(uniform_buffer);
+
+    UniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    UniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    UniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
+    {
+        CreateBuffer(BufferSize,
+                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     UniformBuffers[Index], UniformBuffersMemory[Index]);
+
+        vkMapMemory(Device, UniformBuffersMemory[Index], 0, BufferSize, 0, &UniformBuffersMapped[Index]);
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
     std::vector<VkCommandBuffer> CommandBuffers;
     CommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -863,6 +892,22 @@ int main()
             printf("Failed to record command buffer!\n");
         }
 
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //NOTE(Lyubomir): Update Uniform Buffer
+        static auto StartTime = std::chrono::high_resolution_clock::now();
+        auto CurrentTime = std::chrono::high_resolution_clock::now();
+        float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
+
+        uniform_buffer UniformBuffer = {};
+        UniformBuffer.ModelMatrix = glm::rotate(glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        UniformBuffer.ViewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(45.0f), SwapChainExtent.width / (float) SwapChainExtent.height, 0.1f, 10.0f);
+        UniformBuffer.ProjectionMatrix[1][1] *= -1;
+
+        memcpy(UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //NOTE(Lyubomir): Submit Frame
         VkSubmitInfo SubmitInfo = {};
         SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         VkSemaphore WaitSemaphores[] = { ImageAvailableSemaphores[CurrentFrame] };
@@ -910,7 +955,7 @@ int main()
     }
     vkDestroyCommandPool(Device, CommandPool, nullptr);
 
-    for (int Index = 0;Index < SwapChainFramebuffers.size(); ++Index)
+    for (uint32 Index = 0;Index < SwapChainFramebuffers.size(); ++Index)
     {
         vkDestroyFramebuffer(Device, SwapChainFramebuffers[Index], nullptr);
     }
@@ -921,12 +966,18 @@ int main()
 
     vkDestroyRenderPass(Device, RenderPass, nullptr);
 
-    for (int Index; Index < SwapChainImageViews.size(); ++Index)
+    for (uint32 Index; Index < SwapChainImageViews.size(); ++Index)
     {
         vkDestroyImageView(Device, SwapChainImageViews[Index], nullptr);
     }
 
     vkDestroySwapchainKHR(Device, SwapChain, nullptr);
+
+    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
+    {
+        vkDestroyBuffer(Device, UniformBuffers[Index], nullptr);
+        vkFreeMemory(Device, UniformBuffersMemory[Index], nullptr);
+    }
 
     vkDestroyDescriptorSetLayout(Device, DescriptorSetLayout, nullptr);
 
