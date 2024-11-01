@@ -1,7 +1,7 @@
 ASSEMBLY := engine
 BUILD_DIR := bin
 
-COMPILER_FLAGS := -v
+COMPILER_FLAGS := -v -std=c++11
 INCLUDE_FLAGS := -Iengine -I$(VULKAN_SDK)/include
 LINKER_FLAGS := -L$(VULKAN_SDK)/lib -lvulkan -framework Cocoa -framework QuartzCore -framework Foundation -framework Metal
 

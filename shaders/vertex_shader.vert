@@ -14,6 +14,6 @@ layout(location = 0) out vec3 FragmentColor;
 
 void main()
 {
-    gl_Position = UniformBuffer.ProjectionMatrix * UniformBuffer.ViewMatrix * UniformBuffer.ModelMatrix * vec4(Position, 0.0, 1.0);
+    gl_Position = UniformBuffer.ProjectionMatrix * UniformBuffer.ViewMatrix * UniformBuffer.ModelMatrix * vec4(Position, 0, 1.0);
     FragmentColor = Color;
 }

@@ -586,7 +586,7 @@ int main()
     Rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     Rasterizer.lineWidth = 1.0f;
     Rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    Rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    Rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     Rasterizer.depthBiasEnable = VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo MultiSampling = {};
@@ -779,6 +779,61 @@ int main()
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Descriptor Pool
+    VkDescriptorPoolSize DescriptorPoolSize = {};
+    DescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    DescriptorPoolSize.descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
+
+    VkDescriptorPoolCreateInfo DescriptorPoolInfo = {};
+    DescriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    DescriptorPoolInfo.poolSizeCount = 1;
+    DescriptorPoolInfo.pPoolSizes = &DescriptorPoolSize;
+    DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
+
+    VkDescriptorPool DescriptorPool;
+    if (vkCreateDescriptorPool(Device, &DescriptorPoolInfo, nullptr, &DescriptorPool) != VK_SUCCESS)
+    {
+        printf("Failed to create descriptor pool!\n");
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Descriptor Sets
+    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts(MAX_FRAMES_IN_FLIGHT, DescriptorSetLayout);
+    VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = {};
+    DescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    DescriptorSetAllocateInfo.descriptorPool = DescriptorPool;
+    DescriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    DescriptorSetAllocateInfo.pSetLayouts = DescriptorSetLayouts.data();
+
+    std::vector<VkDescriptorSet> DescriptorSets;
+    DescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(Device, &DescriptorSetAllocateInfo, DescriptorSets.data()) != VK_SUCCESS)
+    {
+        printf("Failed to allocate descriptor sets!\n");
+    }
+
+    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
+    {
+        VkDescriptorBufferInfo DescriptorBufferInfo = {};
+        DescriptorBufferInfo.buffer = UniformBuffers[Index];
+        DescriptorBufferInfo.offset = 0;
+        DescriptorBufferInfo.range = sizeof(uniform_buffer);
+
+        VkWriteDescriptorSet DescriptorWrite = {};
+        DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        DescriptorWrite.dstSet = DescriptorSets[Index];
+        DescriptorWrite.dstBinding = 0;
+        DescriptorWrite.dstArrayElement = 0;
+        DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        DescriptorWrite.descriptorCount = 1;
+        DescriptorWrite.pBufferInfo = &DescriptorBufferInfo;
+        DescriptorWrite.pImageInfo = nullptr; // Optional
+        DescriptorWrite.pTexelBufferView = nullptr; // Optional
+
+        vkUpdateDescriptorSets(Device, 1, &DescriptorWrite, 0, nullptr);
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
     std::vector<VkCommandBuffer> CommandBuffers;
     CommandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -904,6 +959,8 @@ int main()
 
         vkCmdBindIndexBuffer(CommandBuffers[CurrentFrame], IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+        vkCmdBindDescriptorSets(CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, PipelineLayout, 0, 1, &DescriptorSets[CurrentFrame], 0, nullptr);
+
         vkCmdDrawIndexed(CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
         vkCmdEndRenderPass(CommandBuffers[CurrentFrame]);
 
@@ -984,6 +1041,8 @@ int main()
         vkDestroyBuffer(Device, UniformBuffers[Index], nullptr);
         vkFreeMemory(Device, UniformBuffersMemory[Index], nullptr);
     }
+
+    vkDestroyDescriptorPool(Device, DescriptorPool, nullptr);
 
     vkDestroyDescriptorSetLayout(Device, DescriptorSetLayout, nullptr);
 
