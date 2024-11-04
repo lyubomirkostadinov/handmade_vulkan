@@ -6,9 +6,8 @@
 #include "../libs/glm/glm.hpp"
 #include "../libs/glm/gtc/matrix_transform.hpp""
 
-#include <chrono>
-
 //TODO(Lyubomir): Stay away from STD!
+#include <chrono>
 #include <vector>
 
 //TODO(Lyubomir): Math Library and API Types
@@ -145,22 +144,22 @@ int main()
     const uint32 NumIndices = 36;
 
     vertex Vertices[NumVertices] = {};
-    Vertices[0].Position = glm::vec3(-0.5f, -0.5f, -0.5f);
-    Vertices[0].Color = glm::vec3(1.0f, 0.0f, 0.0f);
-    Vertices[1].Position = glm::vec3(-0.5f,  0.5f, -0.5f);
-    Vertices[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
-    Vertices[2].Position = glm::vec3(0.5f, 0.5f, -0.5f);
-    Vertices[2].Color = glm::vec3(0.0f, 0.0f, 1.0f);
-    Vertices[3].Position = glm::vec3(0.5f, -0.5f, -0.5f);
-    Vertices[3].Color = glm::vec3(1.0f, 1.0f, 0.0f);
-    Vertices[4].Position = glm::vec3(-0.5f, -0.5f,  0.5f);
-    Vertices[4].Color = glm::vec3(0.0f, 1.0f, 1.0f);
-    Vertices[5].Position = glm::vec3(-0.5f, 0.5f, 0.5f);
-    Vertices[5].Color = glm::vec3(1.0f, 0.0f, 1.0f);
-    Vertices[6].Position = glm::vec3(0.5f, 0.5f, 0.5f);
-    Vertices[6].Color = glm::vec3(1.0f, 0.0f, 0.0f);
-    Vertices[7].Position = glm::vec3(0.5f, -0.5f, 0.5f);
-    Vertices[7].Color = glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[0].Position   =    glm::vec3(-0.5f, -0.5f, -0.5f);
+    Vertices[0].Color      =    glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[1].Position   =    glm::vec3(-0.5f,  0.5f, -0.5f);
+    Vertices[1].Color      =    glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[2].Position   =    glm::vec3(0.5f, 0.5f, -0.5f);
+    Vertices[2].Color      =    glm::vec3(0.0f, 0.0f, 1.0f);
+    Vertices[3].Position   =    glm::vec3(0.5f, -0.5f, -0.5f);
+    Vertices[3].Color      =    glm::vec3(1.0f, 1.0f, 0.0f);
+    Vertices[4].Position   =    glm::vec3(-0.5f, -0.5f,  0.5f);
+    Vertices[4].Color      =    glm::vec3(0.0f, 1.0f, 1.0f);
+    Vertices[5].Position   =    glm::vec3(-0.5f, 0.5f, 0.5f);
+    Vertices[5].Color      =    glm::vec3(1.0f, 0.0f, 1.0f);
+    Vertices[6].Position   =    glm::vec3(0.5f, 0.5f, 0.5f);
+    Vertices[6].Color      =    glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[7].Position   =    glm::vec3(0.5f, -0.5f, 0.5f);
+    Vertices[7].Color      =    glm::vec3(0.0f, 1.0f, 0.0f);
 
     uint32 Indices[NumIndices] =
     {
@@ -312,7 +311,6 @@ int main()
     {
         printf("Failed to find a suitable GPU!\n");
     }
-
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Logical Device
