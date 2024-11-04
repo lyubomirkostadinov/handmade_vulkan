@@ -18,7 +18,7 @@ uint32 CurrentFrame = 0;
 
 struct vertex
 {
-    glm::vec2 Position;
+    glm::vec3 Position;
     glm::vec3 Color;
 };
 
@@ -141,20 +141,36 @@ void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize 
 
 int main()
 {
-    const uint32 NumVertices = 4;
-    const uint32 NumIndices = 6;
+    const uint32 NumVertices = 8;
+    const uint32 NumIndices = 36;
 
     vertex Vertices[NumVertices] = {};
-    Vertices[0].Position = glm::vec2(-0.5f, -0.5f);
+    Vertices[0].Position = glm::vec3(-0.5f, -0.5f, -0.5f);
     Vertices[0].Color = glm::vec3(1.0f, 0.0f, 0.0f);
-    Vertices[1].Position = glm::vec2(0.5f, -0.5f);
+    Vertices[1].Position = glm::vec3(-0.5f,  0.5f, -0.5f);
     Vertices[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
-    Vertices[2].Position = glm::vec2(0.5f, 0.5f);
+    Vertices[2].Position = glm::vec3(0.5f, 0.5f, -0.5f);
     Vertices[2].Color = glm::vec3(0.0f, 0.0f, 1.0f);
-    Vertices[3].Position = glm::vec2(-0.5f, 0.5f);
+    Vertices[3].Position = glm::vec3(0.5f, -0.5f, -0.5f);
     Vertices[3].Color = glm::vec3(1.0f, 1.0f, 0.0f);
+    Vertices[4].Position = glm::vec3(-0.5f, -0.5f,  0.5f);
+    Vertices[4].Color = glm::vec3(0.0f, 1.0f, 1.0f);
+    Vertices[5].Position = glm::vec3(-0.5f, 0.5f, 0.5f);
+    Vertices[5].Color = glm::vec3(1.0f, 0.0f, 1.0f);
+    Vertices[6].Position = glm::vec3(0.5f, 0.5f, 0.5f);
+    Vertices[6].Color = glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[7].Position = glm::vec3(0.5f, -0.5f, 0.5f);
+    Vertices[7].Color = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    uint32 Indices[NumIndices] = {0, 1, 2, 2, 3, 0};
+    uint32 Indices[NumIndices] =
+    {
+        0, 1, 2, 0, 2, 3,
+        4, 6, 5, 4, 7, 6,
+        4, 5, 1, 4, 1, 0,
+        3, 2, 6, 3, 6, 7,
+        1, 5, 6, 1, 6, 2,
+        4, 0, 3, 4, 3, 7
+    };
 
     VkVertexInputBindingDescription BindingDescription = {};
     BindingDescription.binding = 0;
@@ -164,7 +180,7 @@ int main()
     VkVertexInputAttributeDescription AttributeDescriptions[2] = {};
     AttributeDescriptions[0].binding = 0;
     AttributeDescriptions[0].location = 0;
-    AttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+    AttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     AttributeDescriptions[0].offset = offsetof(vertex, Position);
 
     AttributeDescriptions[1].binding = 0;
