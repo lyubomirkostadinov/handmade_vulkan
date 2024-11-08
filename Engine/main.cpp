@@ -1,142 +1,7 @@
 
-#include "platform.h"
-#include "vulkan/vulkan_core.h"
-
-#define GLM_FORCE_RADIANS
-#include "../libs/glm/glm.hpp"
-#include "../libs/glm/gtc/matrix_transform.hpp""
-
-//TODO(Lyubomir): Stay away from STD!
-#include <chrono>
-#include <vector>
+#include "render_backend.cpp"
 
 //TODO(Lyubomir): Math Library and API Types
-
-#define MAX_FRAMES_IN_FLIGHT 2
-uint32 CurrentFrame = 0;
-
-struct vertex
-{
-    glm::vec3 Position;
-    glm::vec3 Color;
-};
-
-struct uniform_buffer
-{
-    //TODO(Lyubomir): Camera
-    glm::mat4 ModelMatrix;
-    glm::mat4 ViewMatrix;
-    glm::mat4 ProjectionMatrix;
-};
-
-static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
-                                                    VkDebugUtilsMessageTypeFlagsEXT MessageType,
-                                                    const VkDebugUtilsMessengerCallbackDataEXT* CallbackData,
-                                                    void* UserData)
-{
-    printf("validation layer: \n");
-    printf(CallbackData->pMessage);
-    printf("\n\n");
-
-    return VK_FALSE;
-}
-
-//TODO(Lyubomir): Move to graphics.h
-VkPhysicalDevice PhysicalDevice = 0;
-VkDevice Device;
-VkCommandPool CommandPool;
-VkQueue GraphicsQueue;
-VkQueue PresentQueue;
-VkBuffer VertexBuffer;
-VkDeviceMemory VertexBufferMemory;
-VkBuffer IndexBuffer;
-VkDeviceMemory IndexBufferMemory;
-
-uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties)
-{
-        VkPhysicalDeviceMemoryProperties MemoryProperties;
-        vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
-
-        for (uint32_t Index = 0; Index < MemoryProperties.memoryTypeCount; ++Index)
-        {
-            if ((TypeFilter & (1 << Index)) && (MemoryProperties.memoryTypes[Index].propertyFlags & Properties) == Properties)
-            {
-                return Index;
-            }
-        }
-
-        printf("Failed to find suitable memory type!\n");
-        return MemoryProperties.memoryTypeCount + 1;
-}
-
-void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyFlags MemoryProperties, VkBuffer& Buffer, VkDeviceMemory& BufferMemory)
-{
-    VkBufferCreateInfo BufferInfo = {};
-    BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    BufferInfo.size = Size;
-    BufferInfo.usage = Usage;
-    BufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (vkCreateBuffer(Device, &BufferInfo, nullptr, &Buffer) != VK_SUCCESS)
-    {
-        printf("Failed to create buffer!\n");
-    }
-
-    VkMemoryRequirements MemoryRequirements;
-    vkGetBufferMemoryRequirements(Device, Buffer, &MemoryRequirements);
-
-    VkMemoryAllocateInfo AllocateInfo = {};
-    AllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    AllocateInfo.allocationSize = MemoryRequirements.size;
-    AllocateInfo.memoryTypeIndex = FindMemoryType(MemoryRequirements.memoryTypeBits, MemoryProperties);
-
-    //NOTE(Lyubomir): The maximum number of simultaneous memory allocations is limited by the maxMemoryAllocationCount
-    // physical device limit, which may be as low as 4096 even on high end hardware like an NVIDIA GTX 1080.
-    // The right way to allocate memory for a large number of objects at the same time is to create a custom allocator
-    // that splits up a single allocation among many different objects by using the offset parameters.
-    if (vkAllocateMemory(Device, &AllocateInfo, nullptr, &BufferMemory) != VK_SUCCESS)
-    {
-        printf("Failed to allocate buffer memory!\n");
-    }
-
-    vkBindBufferMemory(Device, Buffer, BufferMemory, 0);
-}
-
-void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size)
-{
-    VkCommandBufferAllocateInfo AllocateInfo = {};
-    AllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    AllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    AllocateInfo.commandPool = CommandPool;
-    AllocateInfo.commandBufferCount = 1;
-
-    VkCommandBuffer CommandBuffer;
-    vkAllocateCommandBuffers(Device, &AllocateInfo, &CommandBuffer);
-
-    VkCommandBufferBeginInfo BeginInfo = {};
-    BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
-
-    VkBufferCopy CopyRegion = {};
-    CopyRegion.srcOffset = 0; // Optional
-    CopyRegion.dstOffset = 0; // Optional
-    CopyRegion.size = Size;
-    vkCmdCopyBuffer(CommandBuffer, SourceBuffer, DestinationBuffer, 1, &CopyRegion);
-
-    vkEndCommandBuffer(CommandBuffer);
-
-    VkSubmitInfo SubmitInfo = {};
-    SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    SubmitInfo.commandBufferCount = 1;
-    SubmitInfo.pCommandBuffers = &CommandBuffer;
-
-    vkQueueSubmit(GraphicsQueue, 1, &SubmitInfo, 0);
-    vkQueueWaitIdle(GraphicsQueue);
-
-    vkFreeCommandBuffers(Device, CommandPool, 1, &CommandBuffer);
-}
 
 int main()
 {
@@ -144,22 +9,22 @@ int main()
     const uint32 NumIndices = 36;
 
     vertex Vertices[NumVertices] = {};
-    Vertices[0].Position   =    glm::vec3(-0.5f, -0.5f, -0.5f);
-    Vertices[0].Color      =    glm::vec3(1.0f, 0.0f, 0.0f);
-    Vertices[1].Position   =    glm::vec3(-0.5f,  0.5f, -0.5f);
-    Vertices[1].Color      =    glm::vec3(0.0f, 1.0f, 0.0f);
-    Vertices[2].Position   =    glm::vec3(0.5f, 0.5f, -0.5f);
-    Vertices[2].Color      =    glm::vec3(0.0f, 0.0f, 1.0f);
-    Vertices[3].Position   =    glm::vec3(0.5f, -0.5f, -0.5f);
-    Vertices[3].Color      =    glm::vec3(1.0f, 1.0f, 0.0f);
-    Vertices[4].Position   =    glm::vec3(-0.5f, -0.5f,  0.5f);
-    Vertices[4].Color      =    glm::vec3(0.0f, 1.0f, 1.0f);
-    Vertices[5].Position   =    glm::vec3(-0.5f, 0.5f, 0.5f);
-    Vertices[5].Color      =    glm::vec3(1.0f, 0.0f, 1.0f);
-    Vertices[6].Position   =    glm::vec3(0.5f, 0.5f, 0.5f);
-    Vertices[6].Color      =    glm::vec3(1.0f, 0.0f, 0.0f);
-    Vertices[7].Position   =    glm::vec3(0.5f, -0.5f, 0.5f);
-    Vertices[7].Color      =    glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[0].VertexPosition   =    glm::vec3(-0.5f, -0.5f, -0.5f);
+    Vertices[0].VertexColor      =    glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[1].VertexPosition   =    glm::vec3(-0.5f,  0.5f, -0.5f);
+    Vertices[1].VertexColor      =    glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[2].VertexPosition   =    glm::vec3(0.5f, 0.5f, -0.5f);
+    Vertices[2].VertexColor      =    glm::vec3(0.0f, 0.0f, 1.0f);
+    Vertices[3].VertexPosition   =    glm::vec3(0.5f, -0.5f, -0.5f);
+    Vertices[3].VertexColor      =    glm::vec3(1.0f, 1.0f, 0.0f);
+    Vertices[4].VertexPosition   =    glm::vec3(-0.5f, -0.5f,  0.5f);
+    Vertices[4].VertexColor      =    glm::vec3(0.0f, 1.0f, 1.0f);
+    Vertices[5].VertexPosition   =    glm::vec3(-0.5f, 0.5f, 0.5f);
+    Vertices[5].VertexColor      =    glm::vec3(1.0f, 0.0f, 1.0f);
+    Vertices[6].VertexPosition   =    glm::vec3(0.5f, 0.5f, 0.5f);
+    Vertices[6].VertexColor      =    glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[7].VertexPosition   =    glm::vec3(0.5f, -0.5f, 0.5f);
+    Vertices[7].VertexColor      =    glm::vec3(0.0f, 1.0f, 0.0f);
 
     uint32 Indices[NumIndices] =
     {
@@ -180,18 +45,18 @@ int main()
     AttributeDescriptions[0].binding = 0;
     AttributeDescriptions[0].location = 0;
     AttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    AttributeDescriptions[0].offset = offsetof(vertex, Position);
+    AttributeDescriptions[0].offset = offsetof(vertex, VertexPosition);
 
     AttributeDescriptions[1].binding = 0;
     AttributeDescriptions[1].location = 1;
     AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    AttributeDescriptions[1].offset = offsetof(vertex, Color);
+    AttributeDescriptions[1].offset = offsetof(vertex, VertexColor);
 
     Initialize();
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vulkan Instance And Setup Validation Layer
-    bool32 EnableValidationLayers = true;
+    RenderBackend.EnableValidationLayers = true;
 
     VkApplicationInfo AppInfo = {};
     AppInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -210,7 +75,7 @@ int main()
     Extensions.push_back("VK_KHR_surface");
     Extensions.push_back("VK_EXT_metal_surface");
     Extensions.push_back("VK_KHR_portability_enumeration");
-    if(EnableValidationLayers)
+    if(RenderBackend.EnableValidationLayers)
     {
         Extensions.push_back("VK_EXT_debug_utils");
     }
@@ -225,7 +90,7 @@ int main()
     InstanceCreateInfo.ppEnabledExtensionNames = Extensions.data();
 
     VkDebugUtilsMessengerCreateInfoEXT DebugCreateInfo = {};
-    if (EnableValidationLayers)
+    if (RenderBackend.EnableValidationLayers)
     {
         InstanceCreateInfo.enabledLayerCount = static_cast<uint32>(ValidationLayers.size());
         InstanceCreateInfo.ppEnabledLayerNames = ValidationLayers.data();
@@ -250,19 +115,16 @@ int main()
         InstanceCreateInfo.pNext = nullptr;
     }
 
-    VkInstance Instance;
-    if (vkCreateInstance(&InstanceCreateInfo, nullptr, &Instance) != VK_SUCCESS)
+    if (vkCreateInstance(&InstanceCreateInfo, nullptr, &RenderBackend.Instance) != VK_SUCCESS)
     {
         printf("Failed to create instance!\n");
     }
 
-    VkDebugUtilsMessengerEXT DebugMessenger;
-
     PFN_vkCreateDebugUtilsMessengerEXT CreateDebugUtilsMessengerEXT =
-        (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(Instance, "vkCreateDebugUtilsMessengerEXT");
+        (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(RenderBackend.Instance, "vkCreateDebugUtilsMessengerEXT");
     if (CreateDebugUtilsMessengerEXT != nullptr)
     {
-        VkResult Result = CreateDebugUtilsMessengerEXT(Instance, &DebugCreateInfo, nullptr, &DebugMessenger);
+        VkResult Result = CreateDebugUtilsMessengerEXT(RenderBackend.Instance, &DebugCreateInfo, nullptr, &RenderBackend.DebugMessenger);
         if (Result != VK_SUCCESS)
         {
             printf("Failed to set up debug messenger!\n");
@@ -285,8 +147,7 @@ int main()
     SurfaceCreateInfo.flags = 0;
     SurfaceCreateInfo.pLayer = MetalLayer;
 
-    VkSurfaceKHR Surface;
-    if (vkCreateMetalSurfaceEXT(Instance, &SurfaceCreateInfo, NULL, &Surface) != VK_SUCCESS)
+    if (vkCreateMetalSurfaceEXT(RenderBackend.Instance, &SurfaceCreateInfo, NULL, &RenderBackend.Surface) != VK_SUCCESS)
     {
         printf("Failed to create surface!\n");
     }
@@ -294,18 +155,18 @@ int main()
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Pick Physical Device
     uint32_t DeviceCount = 0;
-    vkEnumeratePhysicalDevices(Instance, &DeviceCount, nullptr);
+    vkEnumeratePhysicalDevices(RenderBackend.Instance, &DeviceCount, nullptr);
     if (DeviceCount == 0)
     {
         printf("Failed to find GPUs with Vulkan support! \n");
     }
     std::vector<VkPhysicalDevice> Devices(DeviceCount);
-    vkEnumeratePhysicalDevices(Instance, &DeviceCount, Devices.data());
+    vkEnumeratePhysicalDevices(RenderBackend.Instance, &DeviceCount, Devices.data());
 
     //TODO(Lyubomir): Pick the best GPU, not the first available.
     if (Devices.size() > 0)
     {
-        PhysicalDevice = Devices[0];
+        RenderBackend.PhysicalDevice = Devices[0];
     }
     else
     {
@@ -339,7 +200,7 @@ int main()
     DeviceCreateInfo.enabledExtensionCount = static_cast<uint32>(DeviceExtensions.size());
     DeviceCreateInfo.ppEnabledExtensionNames = DeviceExtensions.data();
 
-    if (EnableValidationLayers)
+    if (RenderBackend.EnableValidationLayers)
     {
         DeviceCreateInfo.enabledLayerCount = static_cast<uint32>(ValidationLayers.size());
         DeviceCreateInfo.ppEnabledLayerNames = ValidationLayers.data();
@@ -349,13 +210,13 @@ int main()
         DeviceCreateInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateDevice(PhysicalDevice, &DeviceCreateInfo, nullptr, &Device) != VK_SUCCESS)
+    if (vkCreateDevice(RenderBackend.PhysicalDevice, &DeviceCreateInfo, nullptr, &RenderBackend.Device) != VK_SUCCESS)
     {
         printf("Failed to create logical device!\n");
     }
 
-    vkGetDeviceQueue(Device, 0, 0, &GraphicsQueue);
-    vkGetDeviceQueue(Device, 0, 0, &PresentQueue);
+    vkGetDeviceQueue(RenderBackend.Device, 0, 0, &RenderBackend.GraphicsQueue);
+    vkGetDeviceQueue(RenderBackend.Device, 0, 0, &RenderBackend.PresentQueue);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Swap Chain
@@ -363,21 +224,21 @@ int main()
     std::vector<VkSurfaceFormatKHR> Formats;
     std::vector<VkPresentModeKHR> PresentModes;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(PhysicalDevice, Surface, &Capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(RenderBackend.PhysicalDevice, RenderBackend.Surface, &Capabilities);
 
     uint32 FormatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(PhysicalDevice, Surface, &FormatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(RenderBackend.PhysicalDevice, RenderBackend.Surface, &FormatCount, nullptr);
     if (FormatCount != 0)
     {
         Formats.resize(FormatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(PhysicalDevice, Surface, &FormatCount, Formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(RenderBackend.PhysicalDevice, RenderBackend.Surface, &FormatCount, Formats.data());
     }
     uint32 PresentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(PhysicalDevice, Surface, &PresentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(RenderBackend.PhysicalDevice, RenderBackend.Surface, &PresentModeCount, nullptr);
     if (PresentModeCount != 0)
     {
         PresentModes.resize(PresentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(PhysicalDevice, Surface, &PresentModeCount, PresentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(RenderBackend.PhysicalDevice, RenderBackend.Surface, &PresentModeCount, PresentModes.data());
     }
 
     VkSurfaceFormatKHR SurfaceFormat;
@@ -411,7 +272,7 @@ int main()
     }
     VkSwapchainCreateInfoKHR SpawChainCreateInfo = {};
     SpawChainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    SpawChainCreateInfo.surface = Surface;
+    SpawChainCreateInfo.surface = RenderBackend.Surface;
     SpawChainCreateInfo.minImageCount = ImageCount;
     SpawChainCreateInfo.imageFormat = SurfaceFormat.format;
     SpawChainCreateInfo.imageColorSpace = SurfaceFormat.colorSpace;
@@ -426,33 +287,27 @@ int main()
     SpawChainCreateInfo.clipped = VK_TRUE;
     SpawChainCreateInfo.oldSwapchain = 0;
 
-    VkSwapchainKHR SwapChain;
-    if (vkCreateSwapchainKHR(Device, &SpawChainCreateInfo, nullptr, &SwapChain) != VK_SUCCESS)
+    if (vkCreateSwapchainKHR(RenderBackend.Device, &SpawChainCreateInfo, nullptr, &RenderBackend.SwapChain) != VK_SUCCESS)
     {
         printf("Failed to create swap chain!\n");
     }
 
-    std::vector<VkImage> SwapChainImages;
-    VkFormat SwapChainImageFormat;
-    VkExtent2D SwapChainExtent;
-
-    vkGetSwapchainImagesKHR(Device, SwapChain, &ImageCount, nullptr);
-    SwapChainImages.resize(ImageCount);
-    vkGetSwapchainImagesKHR(Device, SwapChain, &ImageCount, SwapChainImages.data());
-    SwapChainImageFormat = SurfaceFormat.format;
-    SwapChainExtent = Extent;
+    vkGetSwapchainImagesKHR(RenderBackend.Device, RenderBackend.SwapChain, &ImageCount, nullptr);
+    RenderBackend.SwapChainImages.resize(ImageCount);
+    vkGetSwapchainImagesKHR(RenderBackend.Device, RenderBackend.SwapChain, &ImageCount, RenderBackend.SwapChainImages.data());
+    RenderBackend.SwapChainImageFormat = SurfaceFormat.format;
+    RenderBackend.SwapChainExtent = Extent;
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Image Views
-    std::vector<VkImageView> SwapChainImageViews;
-    SwapChainImageViews.resize(SwapChainImages.size());
-    for (uint32 i = 0; i < SwapChainImages.size(); i++)
+    RenderBackend.SwapChainImageViews.resize(RenderBackend.SwapChainImages.size());
+    for (uint32 Index = 0; Index < RenderBackend.SwapChainImages.size(); Index++)
     {
         VkImageViewCreateInfo ImageViewCreateInfo = {};
         ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        ImageViewCreateInfo.image = SwapChainImages[i];
+        ImageViewCreateInfo.image = RenderBackend.SwapChainImages[Index];
         ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        ImageViewCreateInfo.format = SwapChainImageFormat;
+        ImageViewCreateInfo.format = RenderBackend.SwapChainImageFormat;
         ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
         ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -463,7 +318,7 @@ int main()
         ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(Device, &ImageViewCreateInfo, nullptr, &SwapChainImageViews[i]) != VK_SUCCESS)
+        if (vkCreateImageView(RenderBackend.Device, &ImageViewCreateInfo, nullptr, &RenderBackend.SwapChainImageViews[Index]) != VK_SUCCESS)
         {
             printf("Failed to create image views!\n");
         }
@@ -472,7 +327,7 @@ int main()
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Render Pass
     VkAttachmentDescription ColorAttachment = {};
-    ColorAttachment.format = SwapChainImageFormat;
+    ColorAttachment.format = RenderBackend.SwapChainImageFormat;
     ColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     ColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     ColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -507,8 +362,7 @@ int main()
     RenderPassInfo.dependencyCount = 1;
     RenderPassInfo.pDependencies = &Dependency;
 
-    VkRenderPass RenderPass;
-    if (vkCreateRenderPass(Device, &RenderPassInfo, nullptr, &RenderPass) != VK_SUCCESS)
+    if (vkCreateRenderPass(RenderBackend.Device, &RenderPassInfo, nullptr, &RenderBackend.RenderPass) != VK_SUCCESS)
     {
         printf("Failed to create render pass!\n");
     }
@@ -528,7 +382,7 @@ int main()
     UniformDescriptorLayoutInfo.bindingCount = 1;
     UniformDescriptorLayoutInfo.pBindings = &UniformBufferLayoutBinding;
 
-    if (vkCreateDescriptorSetLayout(Device, &UniformDescriptorLayoutInfo, nullptr, &DescriptorSetLayout) != VK_SUCCESS)
+    if (vkCreateDescriptorSetLayout(RenderBackend.Device, &UniformDescriptorLayoutInfo, nullptr, &DescriptorSetLayout) != VK_SUCCESS)
     {
         printf("Failed to create descriptor set layout!\n");
     }
@@ -546,7 +400,7 @@ int main()
     VertexShaderCreateInfo.pCode = reinterpret_cast<const uint32*>(VertexShaderCode.data());
 
     VkShaderModule VertexShaderModule;
-    if (vkCreateShaderModule(Device, &VertexShaderCreateInfo, nullptr, &VertexShaderModule) != VK_SUCCESS)
+    if (vkCreateShaderModule(RenderBackend.Device, &VertexShaderCreateInfo, nullptr, &VertexShaderModule) != VK_SUCCESS)
     {
         printf("Failed to create vertex shader module!\n");
     }
@@ -557,7 +411,7 @@ int main()
     FragmentShaderCreateInfo.pCode = reinterpret_cast<const uint32*>(FragmentShaderCode.data());
 
     VkShaderModule FragmentShaderModule;
-    if (vkCreateShaderModule(Device, &FragmentShaderCreateInfo, nullptr, &FragmentShaderModule) != VK_SUCCESS)
+    if (vkCreateShaderModule(RenderBackend.Device, &FragmentShaderCreateInfo, nullptr, &FragmentShaderModule) != VK_SUCCESS)
     {
         printf("Failed to create fragment shader module!\n");
     }
@@ -640,7 +494,7 @@ int main()
     PipelineLayoutInfo.pushConstantRangeCount = 0;
 
     VkPipelineLayout PipelineLayout;
-    if (vkCreatePipelineLayout(Device, &PipelineLayoutInfo, nullptr, &PipelineLayout) != VK_SUCCESS)
+    if (vkCreatePipelineLayout(RenderBackend.Device, &PipelineLayoutInfo, nullptr, &PipelineLayout) != VK_SUCCESS)
     {
         printf("Failed to create pipeline layout!\n");
     }
@@ -658,42 +512,42 @@ int main()
     PipelineInfo.pColorBlendState = &ColorBlending;
     PipelineInfo.pDynamicState = &DynamicState;
     PipelineInfo.layout = PipelineLayout;
-    PipelineInfo.renderPass = RenderPass;
+    PipelineInfo.renderPass = RenderBackend.RenderPass;
     PipelineInfo.subpass = 0;
     PipelineInfo.basePipelineHandle = 0; // Optional
     PipelineInfo.basePipelineIndex = -1; // Optional
 
     VkPipeline GraphicsPipeline;
-    if (vkCreateGraphicsPipelines(Device, 0, 1, &PipelineInfo, nullptr, &GraphicsPipeline) != VK_SUCCESS)
+    if (vkCreateGraphicsPipelines(RenderBackend.Device, 0, 1, &PipelineInfo, nullptr, &GraphicsPipeline) != VK_SUCCESS)
     {
         printf("Failed to create graphics pipeline!\n");
     }
 
-    vkDestroyShaderModule(Device, FragmentShaderModule, nullptr);
-    vkDestroyShaderModule(Device, VertexShaderModule, nullptr);
+    vkDestroyShaderModule(RenderBackend.Device, FragmentShaderModule, nullptr);
+    vkDestroyShaderModule(RenderBackend.Device, VertexShaderModule, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Frame Buffers
     std::vector<VkFramebuffer> SwapChainFramebuffers;
-    SwapChainFramebuffers.resize(SwapChainImageViews.size());
+    SwapChainFramebuffers.resize(RenderBackend.SwapChainImageViews.size());
 
-    for (int Index = 0; Index < SwapChainImageViews.size(); ++Index)
+    for (int Index = 0; Index < RenderBackend.SwapChainImageViews.size(); ++Index)
     {
         VkImageView Attachments[] =
         {
-            SwapChainImageViews[Index]
+            RenderBackend.SwapChainImageViews[Index]
         };
 
         VkFramebufferCreateInfo FramebufferInfo = {};
         FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        FramebufferInfo.renderPass = RenderPass;
+        FramebufferInfo.renderPass = RenderBackend.RenderPass;
         FramebufferInfo.attachmentCount = 1;
         FramebufferInfo.pAttachments = Attachments;
-        FramebufferInfo.width = SwapChainExtent.width;
-        FramebufferInfo.height = SwapChainExtent.height;
+        FramebufferInfo.width = RenderBackend.SwapChainExtent.width;
+        FramebufferInfo.height = RenderBackend.SwapChainExtent.height;
         FramebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(Device, &FramebufferInfo, nullptr,&SwapChainFramebuffers[Index]) != VK_SUCCESS)
+        if (vkCreateFramebuffer(RenderBackend.Device, &FramebufferInfo, nullptr,&SwapChainFramebuffers[Index]) != VK_SUCCESS)
         {
             printf("failed to create framebuffer!\n");
         }
@@ -706,7 +560,7 @@ int main()
     PoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     PoolInfo.queueFamilyIndex = 0;
 
-    if (vkCreateCommandPool(Device, &PoolInfo, nullptr, &CommandPool) != VK_SUCCESS)
+    if (vkCreateCommandPool(RenderBackend.Device, &PoolInfo, nullptr, &RenderBackend.CommandPool) != VK_SUCCESS)
     {
         printf("Failed to create command pool!\n");
     }
@@ -725,20 +579,20 @@ int main()
                  StagingVertexBuffer, StagingVertexBufferMemory);
 
     void* VertexBufferData;
-    vkMapMemory(Device, StagingVertexBufferMemory, 0, VertexBufferSize, 0, &VertexBufferData);
+    vkMapMemory(RenderBackend.Device, StagingVertexBufferMemory, 0, VertexBufferSize, 0, &VertexBufferData);
     memcpy(VertexBufferData, Vertices, (uint64)VertexBufferSize);
-    vkUnmapMemory(Device, StagingVertexBufferMemory);
+    vkUnmapMemory(RenderBackend.Device, StagingVertexBufferMemory);
 
     CreateBuffer(VertexBufferSize,
                  VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                 VertexBuffer, VertexBufferMemory);
+                 RenderBackend.VertexBuffer, RenderBackend.VertexBufferMemory);
 
-    CopyBuffer(StagingVertexBuffer, VertexBuffer, VertexBufferSize);
+    CopyBuffer(StagingVertexBuffer, RenderBackend.VertexBuffer, VertexBufferSize);
 
-    vkDestroyBuffer(Device, StagingVertexBuffer, nullptr);
-    vkFreeMemory(Device, StagingVertexBufferMemory, nullptr);
+    vkDestroyBuffer(RenderBackend.Device, StagingVertexBuffer, nullptr);
+    vkFreeMemory(RenderBackend.Device, StagingVertexBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Index Buffer
@@ -754,20 +608,20 @@ int main()
                  StagingIndexBuffer, StagingIndexBufferMemory);
 
     void* IndexBufferData;
-    vkMapMemory(Device, StagingIndexBufferMemory, 0, IndexBufferSize, 0, &IndexBufferData);
+    vkMapMemory(RenderBackend.Device, StagingIndexBufferMemory, 0, IndexBufferSize, 0, &IndexBufferData);
     memcpy(IndexBufferData, Indices, (uint64)IndexBufferSize);
-    vkUnmapMemory(Device, StagingIndexBufferMemory);
+    vkUnmapMemory(RenderBackend.Device, StagingIndexBufferMemory);
 
     CreateBuffer(IndexBufferSize,
                  VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                  VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                 IndexBuffer, IndexBufferMemory);
+                 RenderBackend.IndexBuffer, RenderBackend.IndexBufferMemory);
 
-    CopyBuffer(StagingIndexBuffer, IndexBuffer, IndexBufferSize);
+    CopyBuffer(StagingIndexBuffer, RenderBackend.IndexBuffer, IndexBufferSize);
 
-    vkDestroyBuffer(Device, StagingIndexBuffer, nullptr);
-    vkFreeMemory(Device, StagingIndexBufferMemory, nullptr);
+    vkDestroyBuffer(RenderBackend.Device, StagingIndexBuffer, nullptr);
+    vkFreeMemory(RenderBackend.Device, StagingIndexBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Uniform Buffers
@@ -789,7 +643,7 @@ int main()
                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                      UniformBuffers[Index], UniformBuffersMemory[Index]);
 
-        vkMapMemory(Device, UniformBuffersMemory[Index], 0, BufferSize, 0, &UniformBuffersMapped[Index]);
+        vkMapMemory(RenderBackend.Device, UniformBuffersMemory[Index], 0, BufferSize, 0, &UniformBuffersMapped[Index]);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -805,7 +659,7 @@ int main()
     DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPool DescriptorPool;
-    if (vkCreateDescriptorPool(Device, &DescriptorPoolInfo, nullptr, &DescriptorPool) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(RenderBackend.Device, &DescriptorPoolInfo, nullptr, &DescriptorPool) != VK_SUCCESS)
     {
         printf("Failed to create descriptor pool!\n");
     }
@@ -816,12 +670,12 @@ int main()
     VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = {};
     DescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     DescriptorSetAllocateInfo.descriptorPool = DescriptorPool;
-    DescriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    DescriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
     DescriptorSetAllocateInfo.pSetLayouts = DescriptorSetLayouts.data();
 
     std::vector<VkDescriptorSet> DescriptorSets;
     DescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(Device, &DescriptorSetAllocateInfo, DescriptorSets.data()) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(RenderBackend.Device, &DescriptorSetAllocateInfo, DescriptorSets.data()) != VK_SUCCESS)
     {
         printf("Failed to allocate descriptor sets!\n");
     }
@@ -844,7 +698,7 @@ int main()
         DescriptorWrite.pImageInfo = nullptr; // Optional
         DescriptorWrite.pTexelBufferView = nullptr; // Optional
 
-        vkUpdateDescriptorSets(Device, 1, &DescriptorWrite, 0, nullptr);
+        vkUpdateDescriptorSets(RenderBackend.Device, 1, &DescriptorWrite, 0, nullptr);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -854,11 +708,11 @@ int main()
 
     VkCommandBufferAllocateInfo AllocInfo = {};
     AllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    AllocInfo.commandPool = CommandPool;
+    AllocInfo.commandPool = RenderBackend.CommandPool;
     AllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     AllocInfo.commandBufferCount = (uint32)CommandBuffers.size();
 
-    if (vkAllocateCommandBuffers(Device, &AllocInfo, CommandBuffers.data()) != VK_SUCCESS)
+    if (vkAllocateCommandBuffers(RenderBackend.Device, &AllocInfo, CommandBuffers.data()) != VK_SUCCESS)
     {
         printf("Failed to allocate command buffers!\n");
     }
@@ -882,9 +736,9 @@ int main()
 
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
-        if (vkCreateSemaphore(Device, &SemaphoreInfo, nullptr, &ImageAvailableSemaphores[Index]) != VK_SUCCESS ||
-            vkCreateSemaphore(Device, &SemaphoreInfo, nullptr, &RenderFinishedSemaphores[Index]) != VK_SUCCESS ||
-            vkCreateFence(Device, &FenceInfo, nullptr, &InFlightFences[Index]) != VK_SUCCESS)
+        if (vkCreateSemaphore(RenderBackend.Device, &SemaphoreInfo, nullptr, &ImageAvailableSemaphores[Index]) != VK_SUCCESS ||
+            vkCreateSemaphore(RenderBackend.Device, &SemaphoreInfo, nullptr, &RenderFinishedSemaphores[Index]) != VK_SUCCESS ||
+            vkCreateFence(RenderBackend.Device, &FenceInfo, nullptr, &InFlightFences[Index]) != VK_SUCCESS)
         {
             printf("Failed to create semaphores!\n");
         }
@@ -896,12 +750,12 @@ int main()
     {
         PollEvents();
 
-        vkWaitForFences(Device, 1, &InFlightFences[CurrentFrame], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(RenderBackend.Device, 1, &InFlightFences[CurrentFrame], VK_TRUE, UINT64_MAX);
 
         //TODO(Lyubomir): Handle SwapChain recreation when the window size changes!!!
 
         uint32_t ImageIndex;
-        vkAcquireNextImageKHR(Device, SwapChain, UINT64_MAX, ImageAvailableSemaphores[CurrentFrame], 0, &ImageIndex);
+        vkAcquireNextImageKHR(RenderBackend.Device, RenderBackend.SwapChain, UINT64_MAX, ImageAvailableSemaphores[CurrentFrame], 0, &ImageIndex);
 
         //////////////////////////////////////////////////////////////////////////////////////////
         //NOTE(Lyubomir): Update Uniform Buffer
@@ -909,10 +763,26 @@ int main()
         auto CurrentTime = std::chrono::high_resolution_clock::now();
         float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
 
+        glm::mat4 ModelMatrix = glm::mat4(1.0f);
+        ModelMatrix = glm::translate(ModelMatrix, glm::vec3(4.0f, 0.0f, 0.0f)); // position
+        ModelMatrix = glm::rotate(ModelMatrix, Time * glm::radians(90.0f), glm::vec3(0.0f, 5.0f, 1.0f)); // rotation
+        ModelMatrix = glm::scale(ModelMatrix, glm::vec3(1.0f, 1.0f, 1.0f)); // scale
+
+        camera Camera = {};
+        Camera.Position = glm::vec3(2.0f, 2.0f, 10.0f);
+        Camera.Target = glm::vec3(0.0f, 0.0f, 0.0f);
+        Camera.Up = glm::vec3(0.0f, 0.0f, 1.0f);
+        Camera.AspectRatio = 45.0f;
+        Camera.NearPlane = 0.1f;
+        Camera.FarPlane = 10.0f;
+
         uniform_buffer UniformBuffer = {};
-        UniformBuffer.ModelMatrix = glm::rotate(glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        UniformBuffer.ViewMatrix = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(45.0f), SwapChainExtent.width / (float) SwapChainExtent.height, 0.1f, 10.0f);
+        UniformBuffer.ModelMatrix = ModelMatrix;
+        UniformBuffer.ViewMatrix = glm::lookAt(Camera.Position, Camera.Target, Camera.Up);
+        UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(Camera.AspectRatio),
+                                         (float) RenderBackend.SwapChainExtent.width /
+                                         (float) RenderBackend.SwapChainExtent.height,
+                                         Camera.NearPlane, Camera.FarPlane);
         UniformBuffer.ProjectionMatrix[1][1] *= -1;
 
         memcpy(UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
@@ -920,7 +790,7 @@ int main()
         //////////////////////////////////////////////////////////////////////////////////////////
         //NOTE(Lyubomir): Reset Fences And Command Buffer
 
-        vkResetFences(Device, 1, &InFlightFences[CurrentFrame]);
+        vkResetFences(RenderBackend.Device, 1, &InFlightFences[CurrentFrame]);
 
         vkResetCommandBuffer(CommandBuffers[CurrentFrame], 0);
 
@@ -938,11 +808,11 @@ int main()
 
         VkRenderPassBeginInfo RenderPassInfo = {};
         RenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        RenderPassInfo.renderPass = RenderPass;
+        RenderPassInfo.renderPass = RenderBackend.RenderPass;
         RenderPassInfo.framebuffer = SwapChainFramebuffers[ImageIndex];
         RenderPassInfo.renderArea.offset.x = 0;
         RenderPassInfo.renderArea.offset.x = 0;
-        RenderPassInfo.renderArea.extent = SwapChainExtent;
+        RenderPassInfo.renderArea.extent = RenderBackend.SwapChainExtent;
         VkClearValue ClearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
         RenderPassInfo.clearValueCount = 1;
         RenderPassInfo.pClearValues = &ClearColor;
@@ -953,8 +823,8 @@ int main()
         VkViewport Viewport = {};
         Viewport.x = 0.0f;
         Viewport.y = 0.0f;
-        Viewport.width = (float) SwapChainExtent.width;
-        Viewport.height = (float) SwapChainExtent.height;
+        Viewport.width = (float) RenderBackend.SwapChainExtent.width;
+        Viewport.height = (float) RenderBackend.SwapChainExtent.height;
         Viewport.minDepth = 0.0f;
         Viewport.maxDepth = 1.0f;
 
@@ -963,19 +833,20 @@ int main()
         VkRect2D Scissor = {};
         Scissor.offset.x = 0;
         Scissor.offset.y = 0;
-        Scissor.extent = SwapChainExtent;
+        Scissor.extent = RenderBackend.SwapChainExtent;
 
         vkCmdSetScissor(CommandBuffers[CurrentFrame], 0, 1, &Scissor);
 
-        VkBuffer VertexBuffers[] = {VertexBuffer};
+        VkBuffer VertexBuffers[] = {RenderBackend.VertexBuffer};
         VkDeviceSize Offsets[] = {0};
         vkCmdBindVertexBuffers(CommandBuffers[CurrentFrame], 0, 1, VertexBuffers, Offsets);
 
-        vkCmdBindIndexBuffer(CommandBuffers[CurrentFrame], IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(CommandBuffers[CurrentFrame], RenderBackend.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdBindDescriptorSets(CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, PipelineLayout, 0, 1, &DescriptorSets[CurrentFrame], 0, nullptr);
 
         vkCmdDrawIndexed(CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
+
         vkCmdEndRenderPass(CommandBuffers[CurrentFrame]);
 
         if (vkEndCommandBuffer(CommandBuffers[CurrentFrame]) != VK_SUCCESS)
@@ -999,7 +870,7 @@ int main()
         SubmitInfo.signalSemaphoreCount = 1;
         SubmitInfo.pSignalSemaphores = SignalSemaphores;
 
-        if (vkQueueSubmit(GraphicsQueue, 1, &SubmitInfo, InFlightFences[CurrentFrame]) != VK_SUCCESS)
+        if (vkQueueSubmit(RenderBackend.GraphicsQueue, 1, &SubmitInfo, InFlightFences[CurrentFrame]) != VK_SUCCESS)
         {
             printf("Failed to submit draw command buffer!\n");
         }
@@ -1010,78 +881,78 @@ int main()
         PresentInfo.waitSemaphoreCount = 1;
         PresentInfo.pWaitSemaphores = SignalSemaphores;
 
-        VkSwapchainKHR swapChains[] = {SwapChain};
+        VkSwapchainKHR swapChains[] = {RenderBackend.SwapChain};
         PresentInfo.swapchainCount = 1;
         PresentInfo.pSwapchains = swapChains;
         PresentInfo.pImageIndices = &ImageIndex;
         PresentInfo.pResults = nullptr; // Optional
 
-        vkQueuePresentKHR(PresentQueue, &PresentInfo);
+        vkQueuePresentKHR(RenderBackend.PresentQueue, &PresentInfo);
 
         CurrentFrame = (CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
-    vkDeviceWaitIdle(Device);
+    vkDeviceWaitIdle(RenderBackend.Device);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Clean Up
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
-        vkDestroySemaphore(Device, ImageAvailableSemaphores[Index], nullptr);
-        vkDestroySemaphore(Device, RenderFinishedSemaphores[Index], nullptr);
-        vkDestroyFence(Device, InFlightFences[Index], nullptr);
+        vkDestroySemaphore(RenderBackend.Device, ImageAvailableSemaphores[Index], nullptr);
+        vkDestroySemaphore(RenderBackend.Device, RenderFinishedSemaphores[Index], nullptr);
+        vkDestroyFence(RenderBackend.Device, InFlightFences[Index], nullptr);
     }
-    vkDestroyCommandPool(Device, CommandPool, nullptr);
+    vkDestroyCommandPool(RenderBackend.Device, RenderBackend.CommandPool, nullptr);
 
     for (uint32 Index = 0;Index < SwapChainFramebuffers.size(); ++Index)
     {
-        vkDestroyFramebuffer(Device, SwapChainFramebuffers[Index], nullptr);
+        vkDestroyFramebuffer(RenderBackend.Device, SwapChainFramebuffers[Index], nullptr);
     }
 
-    vkDestroyPipeline(Device, GraphicsPipeline, nullptr);
+    vkDestroyPipeline(RenderBackend.Device, GraphicsPipeline, nullptr);
 
-    vkDestroyPipelineLayout(Device, PipelineLayout, nullptr);
+    vkDestroyPipelineLayout(RenderBackend.Device, PipelineLayout, nullptr);
 
-    vkDestroyRenderPass(Device, RenderPass, nullptr);
+    vkDestroyRenderPass(RenderBackend.Device, RenderBackend.RenderPass, nullptr);
 
-    for (uint32 Index; Index < SwapChainImageViews.size(); ++Index)
+    for (uint32 Index; Index < RenderBackend.SwapChainImageViews.size(); ++Index)
     {
-        vkDestroyImageView(Device, SwapChainImageViews[Index], nullptr);
+        vkDestroyImageView(RenderBackend.Device, RenderBackend.SwapChainImageViews[Index], nullptr);
     }
 
-    vkDestroySwapchainKHR(Device, SwapChain, nullptr);
+    vkDestroySwapchainKHR(RenderBackend.Device, RenderBackend.SwapChain, nullptr);
 
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
-        vkDestroyBuffer(Device, UniformBuffers[Index], nullptr);
-        vkFreeMemory(Device, UniformBuffersMemory[Index], nullptr);
+        vkDestroyBuffer(RenderBackend.Device, UniformBuffers[Index], nullptr);
+        vkFreeMemory(RenderBackend.Device, UniformBuffersMemory[Index], nullptr);
     }
 
-    vkDestroyDescriptorPool(Device, DescriptorPool, nullptr);
+    vkDestroyDescriptorPool(RenderBackend.Device, DescriptorPool, nullptr);
 
-    vkDestroyDescriptorSetLayout(Device, DescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(RenderBackend.Device, DescriptorSetLayout, nullptr);
 
-    vkDestroyBuffer(Device, IndexBuffer, nullptr);
+    vkDestroyBuffer(RenderBackend.Device, RenderBackend.IndexBuffer, nullptr);
 
-    vkFreeMemory(Device, IndexBufferMemory, nullptr);
+    vkFreeMemory(RenderBackend.Device, RenderBackend.IndexBufferMemory, nullptr);
 
-    vkDestroyBuffer(Device, VertexBuffer, nullptr);
+    vkDestroyBuffer(RenderBackend.Device, RenderBackend.VertexBuffer, nullptr);
 
-    vkFreeMemory(Device, VertexBufferMemory, nullptr);
+    vkFreeMemory(RenderBackend.Device, RenderBackend.VertexBufferMemory, nullptr);
 
-    vkDestroyDevice(Device, nullptr);
+    vkDestroyDevice(RenderBackend.Device, nullptr);
 
-    if (EnableValidationLayers)
+    if (RenderBackend.EnableValidationLayers)
     {
         PFN_vkDestroyDebugUtilsMessengerEXT DestroyDebugUtilsMessengerEXT =
-            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(Instance, "vkDestroyDebugUtilsMessengerEXT");
+            (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(RenderBackend.Instance, "vkDestroyDebugUtilsMessengerEXT");
         if (DestroyDebugUtilsMessengerEXT != nullptr)
         {
-            DestroyDebugUtilsMessengerEXT(Instance, DebugMessenger, nullptr);
+            DestroyDebugUtilsMessengerEXT(RenderBackend.Instance, RenderBackend.DebugMessenger, nullptr);
         }
     }
 
-    vkDestroySurfaceKHR(Instance, Surface, nullptr);
-    vkDestroyInstance(Instance, nullptr);
+    vkDestroySurfaceKHR(RenderBackend.Instance, RenderBackend.Surface, nullptr);
+    vkDestroyInstance(RenderBackend.Instance, nullptr);
 
     Shutdown();
 }
