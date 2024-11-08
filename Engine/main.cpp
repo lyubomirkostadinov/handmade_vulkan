@@ -764,7 +764,7 @@ int main()
         float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
 
         glm::mat4 ModelMatrix = glm::mat4(1.0f);
-        ModelMatrix = glm::translate(ModelMatrix, glm::vec3(4.0f, 0.0f, 0.0f)); // position
+        ModelMatrix = glm::translate(ModelMatrix, glm::vec3(0.0f, 0.0f, 0.0f)); // position
         ModelMatrix = glm::rotate(ModelMatrix, Time * glm::radians(90.0f), glm::vec3(0.0f, 5.0f, 1.0f)); // rotation
         ModelMatrix = glm::scale(ModelMatrix, glm::vec3(1.0f, 1.0f, 1.0f)); // scale
 
@@ -774,7 +774,7 @@ int main()
         Camera.Up = glm::vec3(0.0f, 0.0f, 1.0f);
         Camera.AspectRatio = 45.0f;
         Camera.NearPlane = 0.1f;
-        Camera.FarPlane = 10.0f;
+        Camera.FarPlane = 100.0f;
 
         uniform_buffer UniformBuffer = {};
         UniformBuffer.ModelMatrix = ModelMatrix;
