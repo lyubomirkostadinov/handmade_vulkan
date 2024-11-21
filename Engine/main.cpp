@@ -390,9 +390,8 @@ int main()
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Graphics Pipeline
 
-    //TODO(Lyubomir): Relative Paths!
-    std::vector<char> VertexShaderCode = ReadFile("/Users/lyubomir.kostadinov/Projects/private/handmade_vulkan/shaders/vertex_default_shader.spv");
-    std::vector<char> FragmentShaderCode = ReadFile("/Users/lyubomir.kostadinov/Projects/private/handmade_vulkan/shaders/fragment_default_shader.spv");
+    std::vector<char> VertexShaderCode = ReadFile("../shaders/vertex_default_shader.spv");
+    std::vector<char> FragmentShaderCode = ReadFile("../shaders/fragment_default_shader.spv");
 
     VkShaderModuleCreateInfo VertexShaderCreateInfo = {};
     VertexShaderCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -766,7 +765,7 @@ int main()
         glm::mat4 ModelMatrix = glm::mat4(1.0f);
         ModelMatrix = glm::translate(ModelMatrix, glm::vec3(0.0f, 0.0f, 0.0f)); // position
         ModelMatrix = glm::rotate(ModelMatrix, Time * glm::radians(90.0f), glm::vec3(0.0f, 5.0f, 1.0f)); // rotation
-        ModelMatrix = glm::scale(ModelMatrix, glm::vec3(1.0f, 1.0f, 1.0f)); // scale
+        ModelMatrix = glm::scale(ModelMatrix, glm::vec3(1.3f, 1.3f, 1.3f)); // scale
 
         camera Camera = {};
         Camera.Position = glm::vec3(2.0f, 2.0f, 10.0f);
