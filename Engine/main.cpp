@@ -1,5 +1,6 @@
 
 #include "render_backend.cpp"
+#include "render_backend.h"
 
 //TODO(Lyubomir): Math Library and API Types
 
@@ -628,34 +629,25 @@ int main()
     std::vector<VkDeviceMemory> UniformBuffersMemory;
     std::vector<void*> UniformBuffersMapped;
 
-    VkDeviceSize BufferSize = sizeof(uniform_buffer);
+    CreateFrameUniformBuffers(&RenderBackend, &UniformBuffers, &UniformBuffersMemory, &UniformBuffersMapped);
 
-    UniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
-    UniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
-    UniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+    std::vector<VkBuffer> UniformBuffers2;
+    std::vector<VkDeviceMemory> UniformBuffersMemory2;
+    std::vector<void*> UniformBuffersMapped2;
 
-    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
-    {
-        CreateBuffer(BufferSize,
-                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                     UniformBuffers[Index], UniformBuffersMemory[Index]);
-
-        vkMapMemory(RenderBackend.Device, UniformBuffersMemory[Index], 0, BufferSize, 0, &UniformBuffersMapped[Index]);
-    }
+    CreateFrameUniformBuffers(&RenderBackend, &UniformBuffers2, &UniformBuffersMemory2, &UniformBuffersMapped2);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Pool
     VkDescriptorPoolSize DescriptorPoolSize = {};
     DescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    DescriptorPoolSize.descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
+    DescriptorPoolSize.descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
 
     VkDescriptorPoolCreateInfo DescriptorPoolInfo = {};
     DescriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     DescriptorPoolInfo.poolSizeCount = 1;
     DescriptorPoolInfo.pPoolSizes = &DescriptorPoolSize;
-    DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
+    DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
 
     VkDescriptorPool DescriptorPool;
     if (vkCreateDescriptorPool(RenderBackend.Device, &DescriptorPoolInfo, nullptr, &DescriptorPool) != VK_SUCCESS)
@@ -665,40 +657,15 @@ int main()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Sets
-    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts(MAX_FRAMES_IN_FLIGHT, DescriptorSetLayout);
-    VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = {};
-    DescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    DescriptorSetAllocateInfo.descriptorPool = DescriptorPool;
-    DescriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
-    DescriptorSetAllocateInfo.pSetLayouts = DescriptorSetLayouts.data();
-
     std::vector<VkDescriptorSet> DescriptorSets;
-    DescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(RenderBackend.Device, &DescriptorSetAllocateInfo, DescriptorSets.data()) != VK_SUCCESS)
-    {
-        printf("Failed to allocate descriptor sets!\n");
-    }
+    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts(MAX_FRAMES_IN_FLIGHT, DescriptorSetLayout);
 
-    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
-    {
-        VkDescriptorBufferInfo DescriptorBufferInfo = {};
-        DescriptorBufferInfo.buffer = UniformBuffers[Index];
-        DescriptorBufferInfo.offset = 0;
-        DescriptorBufferInfo.range = sizeof(uniform_buffer);
+    CreateDescriptorSets(&RenderBackend, &DescriptorSetLayouts, &DescriptorSets, &DescriptorPool, &UniformBuffers);
 
-        VkWriteDescriptorSet DescriptorWrite = {};
-        DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        DescriptorWrite.dstSet = DescriptorSets[Index];
-        DescriptorWrite.dstBinding = 0;
-        DescriptorWrite.dstArrayElement = 0;
-        DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        DescriptorWrite.descriptorCount = 1;
-        DescriptorWrite.pBufferInfo = &DescriptorBufferInfo;
-        DescriptorWrite.pImageInfo = nullptr; // Optional
-        DescriptorWrite.pTexelBufferView = nullptr; // Optional
+    std::vector<VkDescriptorSet> DescriptorSets2;
+    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts2(MAX_FRAMES_IN_FLIGHT, DescriptorSetLayout);
 
-        vkUpdateDescriptorSets(RenderBackend.Device, 1, &DescriptorWrite, 0, nullptr);
-    }
+    CreateDescriptorSets(&RenderBackend, &DescriptorSetLayouts2, &DescriptorSets2, &DescriptorPool, &UniformBuffers2);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
@@ -843,6 +810,29 @@ int main()
         vkCmdBindIndexBuffer(CommandBuffers[CurrentFrame], RenderBackend.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         vkCmdBindDescriptorSets(CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, PipelineLayout, 0, 1, &DescriptorSets[CurrentFrame], 0, nullptr);
+
+        vkCmdDrawIndexed(CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
+
+        //////////////////////////////////////////////////////////////////////////////////////////////////////
+        //NOTE(Lyubomir): Draw Second Cube
+
+        glm::mat4 ModelMatrix2 = glm::mat4(1.0f);
+        ModelMatrix2 = glm::translate(ModelMatrix2, glm::vec3(4.0f, 0.0f, 0.0f)); // position
+        ModelMatrix2 = glm::rotate(ModelMatrix2, Time * glm::radians(90.0f), glm::vec3(2.0f, 0.0f, 5.0f)); // rotation
+        ModelMatrix2 = glm::scale(ModelMatrix2, glm::vec3(1.0f, 1.0f, 1.0f)); // scale
+
+        uniform_buffer UniformBuffer2 = {};
+        UniformBuffer2.ModelMatrix = ModelMatrix2;
+        UniformBuffer2.ViewMatrix = glm::lookAt(Camera.Position, Camera.Target, Camera.Up);
+        UniformBuffer2.ProjectionMatrix = glm::perspective(glm::radians(Camera.AspectRatio),
+                                         (float) RenderBackend.SwapChainExtent.width /
+                                         (float) RenderBackend.SwapChainExtent.height,
+                                         Camera.NearPlane, Camera.FarPlane);
+        UniformBuffer2.ProjectionMatrix[1][1] *= -1;
+
+        memcpy(UniformBuffersMapped2[CurrentFrame], &UniformBuffer2, sizeof(UniformBuffer2));
+
+        vkCmdBindDescriptorSets(CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, PipelineLayout, 0, 1, &DescriptorSets2[CurrentFrame], 0, nullptr);
 
         vkCmdDrawIndexed(CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
 

@@ -97,3 +97,66 @@ void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize 
 
     vkFreeCommandBuffers(RenderBackend.Device, RenderBackend.CommandPool, 1, &CommandBuffer);
 }
+
+void CreateFrameUniformBuffers(render_backend* RenderBackend,
+                               std::vector<VkBuffer>* UniformBuffers,
+                               std::vector<VkDeviceMemory>* UniformBuffersMemory,
+                               std::vector<void*>* UniformBuffersMapped)
+{
+    VkDeviceSize BufferSize = sizeof(uniform_buffer);
+
+    UniformBuffers->resize(MAX_FRAMES_IN_FLIGHT);
+    UniformBuffersMemory->resize(MAX_FRAMES_IN_FLIGHT);
+    UniformBuffersMapped->resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
+    {
+        CreateBuffer(BufferSize,
+                     VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     (*UniformBuffers)[Index], (*UniformBuffersMemory)[Index]);
+
+        vkMapMemory(RenderBackend->Device, (*UniformBuffersMemory)[Index], 0, BufferSize, 0, &(*UniformBuffersMapped)[Index]);
+    }
+}
+
+void CreateDescriptorSets(render_backend* RenderBackend,
+                          std::vector<VkDescriptorSetLayout>* DescriptorSetLayouts,
+                          std::vector<VkDescriptorSet>* DescriptorSets,
+                          VkDescriptorPool* DescriptorPool,
+                          std::vector<VkBuffer>* UniformBuffers)
+{
+    VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = {};
+    DescriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    DescriptorSetAllocateInfo.descriptorPool = *DescriptorPool;
+    DescriptorSetAllocateInfo.descriptorSetCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT);
+    DescriptorSetAllocateInfo.pSetLayouts = DescriptorSetLayouts->data();
+
+    DescriptorSets->resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(RenderBackend->Device, &DescriptorSetAllocateInfo, DescriptorSets->data()) != VK_SUCCESS)
+    {
+        printf("Failed to allocate descriptor sets!\n");
+    }
+
+    for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
+    {
+        VkDescriptorBufferInfo DescriptorBufferInfo = {};
+        DescriptorBufferInfo.buffer = (*UniformBuffers)[Index];
+        DescriptorBufferInfo.offset = 0;
+        DescriptorBufferInfo.range = sizeof(uniform_buffer);
+
+        VkWriteDescriptorSet DescriptorWrite = {};
+        DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        DescriptorWrite.dstSet = (*DescriptorSets)[Index];
+        DescriptorWrite.dstBinding = 0;
+        DescriptorWrite.dstArrayElement = 0;
+        DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        DescriptorWrite.descriptorCount = 1;
+        DescriptorWrite.pBufferInfo = &DescriptorBufferInfo;
+        DescriptorWrite.pImageInfo = nullptr; // Optional
+        DescriptorWrite.pTexelBufferView = nullptr; // Optional
+
+        vkUpdateDescriptorSets(RenderBackend->Device, 1, &DescriptorWrite, 0, nullptr);
+    }
+}

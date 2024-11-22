@@ -1,3 +1,4 @@
+
 #pragma once
 
 //TODO(Lyubomir) Extract stuff to Defines.h
@@ -68,3 +69,13 @@ uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties);
 void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyFlags MemoryProperties, VkBuffer& Buffer, VkDeviceMemory& BufferMemory);
 
 void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size);
+
+void CreateFrameUniformBuffers(std::vector<VkBuffer>* UniformBuffers,
+                               std::vector<VkDeviceMemory>* UniformBuffersMemory,
+                               std::vector<void*>* UniformBuffersMapped);
+
+void CreateDescriptorSets(render_backend* RenderBackend,
+                          std::vector<VkDescriptorSetLayout>* DescriptorSetLayouts,
+                          std::vector<VkDescriptorSet>* DescriptorSets,
+                          VkDescriptorPool* DescriptorPool,
+                          std::vector<VkBuffer>* UniformBuffers);
