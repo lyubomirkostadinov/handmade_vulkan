@@ -1,6 +1,11 @@
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <Cocoa/Cocoa.h>
+
+#import <mach-o/dyld.h>
+#import <stdlib.h>
+#import <string.h>
+
 #import "platform.h"
 
 @interface ApplicationDelegate : NSObject <NSApplicationDelegate>
@@ -303,4 +308,18 @@ void ProcessMouseMove(void)
 void ProcessMouseWheel(void)
 {
 
+}
+
+void* MyNSGLGetProcAddress (const char *Name)
+{
+    NSSymbol Symbol;
+    char *SymbolName;
+    SymbolName = (char*)malloc(strlen (Name) + 2);
+    strcpy(SymbolName + 1, Name);
+    SymbolName[0] = '_';
+    Symbol = NULL;
+    if (NSIsSymbolNameDefined (SymbolName))
+        Symbol = NSLookupAndBindSymbol (SymbolName);
+    free (SymbolName);
+    return Symbol ? NSAddressOfSymbol (Symbol) : NULL;
 }

@@ -1,31 +1,57 @@
 
 #include "render_backend.cpp"
-#include "render_backend.h"
+#include "../game/game.h"
+
+game_memory GameMemory;
 
 //TODO(Lyubomir): Math Library and API Types
 
+void LoadGameCode()
+{
+        typedef void (*TestFunction)(game_memory&);
+
+        TestFunction TestFunctionPtr = NULL;
+
+        TestFunctionPtr = (TestFunction)MyNSGLGetProcAddress("TestAddressFunction");
+
+        printf("Address of TestFunction: %p\n", (void*)TestFunctionPtr);
+
+        if (!TestFunctionPtr)
+        {
+            printf("Failed to load function\n");
+        }
+
+        if (TestFunctionPtr)
+        {
+            //NOTE(Lyubomir): Call the function
+            (*TestFunctionPtr)(GameMemory);
+        }
+}
+
 int main()
 {
+    LoadGameCode();
+
     const uint32 NumVertices = 8;
     const uint32 NumIndices = 36;
 
     vertex Vertices[NumVertices] = {};
     Vertices[0].VertexPosition   =    glm::vec3(-0.5f, -0.5f, -0.5f);
-    Vertices[0].VertexColor      =    glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[0].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[1].VertexPosition   =    glm::vec3(-0.5f,  0.5f, -0.5f);
-    Vertices[1].VertexColor      =    glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[1].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[2].VertexPosition   =    glm::vec3(0.5f, 0.5f, -0.5f);
-    Vertices[2].VertexColor      =    glm::vec3(0.0f, 0.0f, 1.0f);
+    Vertices[2].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[3].VertexPosition   =    glm::vec3(0.5f, -0.5f, -0.5f);
-    Vertices[3].VertexColor      =    glm::vec3(1.0f, 1.0f, 0.0f);
+    Vertices[3].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[4].VertexPosition   =    glm::vec3(-0.5f, -0.5f,  0.5f);
-    Vertices[4].VertexColor      =    glm::vec3(0.0f, 1.0f, 1.0f);
+    Vertices[4].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[5].VertexPosition   =    glm::vec3(-0.5f, 0.5f, 0.5f);
-    Vertices[5].VertexColor      =    glm::vec3(1.0f, 0.0f, 1.0f);
+    Vertices[5].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[6].VertexPosition   =    glm::vec3(0.5f, 0.5f, 0.5f);
-    Vertices[6].VertexColor      =    glm::vec3(1.0f, 0.0f, 0.0f);
+    Vertices[6].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
     Vertices[7].VertexPosition   =    glm::vec3(0.5f, -0.5f, 0.5f);
-    Vertices[7].VertexColor      =    glm::vec3(0.0f, 1.0f, 0.0f);
+    Vertices[7].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
 
     uint32 Indices[NumIndices] =
     {

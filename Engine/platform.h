@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../game/game.h"
+
 #include <QuartzCore/QuartzCore.h>
 #include <cstdio>
 #include <stdio.h>
@@ -9,22 +11,6 @@
 #include <vector>
 
 #include <fstream>
-#include <cstdint>
-#include <stdint.h>
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-
-typedef float float32;
-typedef double float64;
-typedef int32 bool32;
 
 struct internal_platform_window_state;
 
@@ -81,3 +67,5 @@ static std::vector<char> ReadFile(const std::string& filename)
     file.close();
     return buffer;
 }
+
+void* MyNSGLGetProcAddress (const char *Name);
