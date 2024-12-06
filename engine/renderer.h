@@ -1,12 +1,8 @@
 #pragma once
 
 #include "render_backend.h"
-#include <ImageIO/ImageIO.h>
-
-struct memory_arena
-{
-    //TODO(Lyubomir): Memory Allocator
-};
+#include "memory_arena.h"
+#include <vector>
 
 struct buffer_group
 {
@@ -16,8 +12,8 @@ struct buffer_group
 
 enum model_type
 {
-    Triangle,
-    Cube,
+    TRIANGLE,
+    CUBE,
     //TODO: Model Types
 };
 
@@ -29,9 +25,13 @@ struct model
 
     model_type ModelType;
     buffer_group* ModelBuffers;
-    VkBuffer* UniformBuffer;
-};
 
+    std::vector<VkBuffer> UniformBuffers;
+    std::vector<VkDeviceMemory> UniformBuffersMemory;
+    std::vector<void*> UniformBuffersMapped;
+
+    std::vector<VkDescriptorSet> DescriptorSets;
+};
 
 buffer_group* GetModelBufferGroup(model_type ModelType);
 model* CreateModel(memory_arena* Arena, model_type ModelType,  glm::vec3 Position, glm::vec3 Rotation, glm::vec3 Scale);

@@ -1,8 +1,25 @@
 #include "renderer.h"
+#include "memory_arena.h"
+#include "render_backend.h"
 
 buffer_group* GetModelBufferGroup(model_type ModelType)
 {
-    buffer_group* Result = nullptr;
+    //TODO(Lyubomir): Do we want to store these in the Arena?
+    buffer_group* Result = PushStruct(&RenderBackend.GraphicsArena, buffer_group);
+
+    switch(ModelType)
+    {
+        case TRIANGLE:
+
+            break;
+        case CUBE:
+            Result->VertexBuffer = &RenderBackend.VertexBuffer;
+            Result->IndexBuffer = &RenderBackend.IndexBuffer;
+            break;
+        default:
+
+            break;
+    }
 
     return Result;
 }
@@ -18,7 +35,10 @@ model* CreateModel(memory_arena* Arena, model_type ModelType, glm::vec3 Position
     TempModel.Scale = Scale;
     TempModel.ModelBuffers = GetModelBufferGroup(ModelType);
 
-    //TODO(Lyubomir): MemCopy TempModel to memory_arena and return the model pointer.
+    CreateFrameUniformBuffers(&RenderBackend, &TempModel.UniformBuffers, &TempModel.UniformBuffersMemory, &TempModel.UniformBuffersMapped);
+
+    Result = PushStruct(Arena, model);
+    memcpy(Result, &TempModel, sizeof(model));
 
     return Result;
 }

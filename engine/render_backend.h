@@ -2,6 +2,7 @@
 #pragma once
 
 //TODO(Lyubomir) Extract stuff to Defines.h
+#include "memory_arena.h"
 #include "platform.h"
 #include "vulkan/vulkan_core.h"
 
@@ -9,12 +10,16 @@
 #include "../libs/glm/glm.hpp"
 #include "../libs/glm/gtc/matrix_transform.hpp"
 
+#include "renderer.h"
+
 //TODO(Lyubomir): Stay away from STD!
 #include <chrono>
 #include <vector>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 uint32 CurrentFrame = 0;
+
+struct model;
 
 struct camera
 {
@@ -75,18 +80,19 @@ struct render_backend
     VkDescriptorPool DescriptorPool;
     VkDescriptorSetLayout DescriptorSetLayout;
 
+    memory_arena GraphicsArena;
+    model* CubeModel;
+
     //TODO(Lyubomir): Sort this out
     std::vector<VkBuffer> UniformBuffers;
     std::vector<VkDeviceMemory> UniformBuffersMemory;
     std::vector<void*> UniformBuffersMapped;
+    std::vector<VkDescriptorSet> DescriptorSets;
+    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
 
     std::vector<VkBuffer> UniformBuffers2;
     std::vector<VkDeviceMemory> UniformBuffersMemory2;
     std::vector<void*> UniformBuffersMapped2;
-
-    std::vector<VkDescriptorSet> DescriptorSets;
-    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
-
     std::vector<VkDescriptorSet> DescriptorSets2;
     std::vector<VkDescriptorSetLayout> DescriptorSetLayouts2;
 } RenderBackend;
@@ -97,7 +103,8 @@ void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyF
 
 void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size);
 
-void CreateFrameUniformBuffers(std::vector<VkBuffer>* UniformBuffers,
+void CreateFrameUniformBuffers(render_backend* RenderBackend,
+                               std::vector<VkBuffer>* UniformBuffers,
                                std::vector<VkDeviceMemory>* UniformBuffersMemory,
                                std::vector<void*>* UniformBuffersMapped);
 
@@ -107,7 +114,7 @@ void CreateDescriptorSets(render_backend* RenderBackend,
                           VkDescriptorPool* DescriptorPool,
                           std::vector<VkBuffer>* UniformBuffers);
 
-void InitializeRenderBackend();
+void InitializeRenderBackend(game_memory* GameMemory);
 
 void Render();
 

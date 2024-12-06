@@ -1,4 +1,5 @@
 #include "render_backend.h"
+#include "renderer.cpp"
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT MessageType,
@@ -161,8 +162,11 @@ void CreateDescriptorSets(render_backend* RenderBackend,
     }
 }
 
-void InitializeRenderBackend()
+void InitializeRenderBackend(game_memory* GameMemory)
 {
+    InitializeArena(&RenderBackend.GraphicsArena, GameMemory->PermanentStorageSize - sizeof(game_memory),
+                    (uint8 *)GameMemory->PermanentStorage + sizeof(game_memory));
+
     vertex Vertices[NumVertices] = {};
     Vertices[0].VertexPosition   =    glm::vec3(-0.5f, -0.5f, -0.5f);
     Vertices[0].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
@@ -772,6 +776,8 @@ void InitializeRenderBackend()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Uniform Buffers
+    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 5.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+
     CreateFrameUniformBuffers(&RenderBackend, &RenderBackend.UniformBuffers, &RenderBackend.UniformBuffersMemory, &RenderBackend.UniformBuffersMapped);
 
     CreateFrameUniformBuffers(&RenderBackend, &RenderBackend.UniformBuffers2, &RenderBackend.UniformBuffersMemory2, &RenderBackend.UniformBuffersMapped2);
@@ -802,6 +808,8 @@ void InitializeRenderBackend()
         RenderBackend.DescriptorSetLayouts[Index] = RenderBackend.DescriptorSetLayout;
         RenderBackend.DescriptorSetLayouts2[Index] = RenderBackend.DescriptorSetLayout;
     }
+
+    //model* CubeModel = RenderBackend.CubeModel;
     CreateDescriptorSets(&RenderBackend, &RenderBackend.DescriptorSetLayouts, &RenderBackend.DescriptorSets, &RenderBackend.DescriptorPool, &RenderBackend.UniformBuffers);
 
     CreateDescriptorSets(&RenderBackend, &RenderBackend.DescriptorSetLayouts2, &RenderBackend.DescriptorSets2, &RenderBackend.DescriptorPool, &RenderBackend.UniformBuffers2);
