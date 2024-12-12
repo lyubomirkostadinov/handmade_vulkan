@@ -84,10 +84,10 @@ struct render_backend
     model* CubeModel;
 
     //TODO(Lyubomir): Sort this out
-    std::vector<VkBuffer> UniformBuffers;
-    std::vector<VkDeviceMemory> UniformBuffersMemory;
-    std::vector<void*> UniformBuffersMapped;
-    std::vector<VkDescriptorSet> DescriptorSets;
+    //std::vector<VkBuffer> UniformBuffers;
+    //std::vector<VkDeviceMemory> UniformBuffersMemory;
+    //std::vector<void*> UniformBuffersMapped;
+    //std::vector<VkDescriptorSet> DescriptorSets;
     std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
 
     std::vector<VkBuffer> UniformBuffers2;

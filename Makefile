@@ -23,11 +23,11 @@ $(BUILD_DIR):
 
 # Compile the game.cpp into a shared library named libgame.dylib
 $(GAME_LIB): $(GAME_SRC_FILES) | $(BUILD_DIR)
-	clang++ $(COMPILER_FLAGS) -shared -fPIC $(GAME_SRC_FILES) -o $(GAME_LIB) -install_name @rpath/libgame.dylib
+	clang++ -g $(COMPILER_FLAGS) -shared -fPIC $(GAME_SRC_FILES) -o $(GAME_LIB) -install_name @rpath/libgame.dylib
 
 # Compile the main application, linking with the libgame.dylib library
 $(BUILD_DIR)/app: $(SRC_FILES) $(GAME_LIB) | $(BUILD_DIR)
-	clang++ $(COMPILER_FLAGS) $(SRC_FILES) -o $(BUILD_DIR)/app $(INCLUDE_FLAGS) $(LINKER_FLAGS) -L$(BUILD_DIR) -lgame
+	clang++ -g $(COMPILER_FLAGS) $(SRC_FILES) -o $(BUILD_DIR)/app $(INCLUDE_FLAGS) $(LINKER_FLAGS) -L$(BUILD_DIR) -lgame
 
 # Clean the build directory
 clean:

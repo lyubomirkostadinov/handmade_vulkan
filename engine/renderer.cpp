@@ -35,10 +35,10 @@ model* CreateModel(memory_arena* Arena, model_type ModelType, glm::vec3 Position
     TempModel.Scale = Scale;
     TempModel.ModelBuffers = GetModelBufferGroup(ModelType);
 
-    CreateFrameUniformBuffers(&RenderBackend, &TempModel.UniformBuffers, &TempModel.UniformBuffersMemory, &TempModel.UniformBuffersMapped);
-
     Result = PushStruct(Arena, model);
     memcpy(Result, &TempModel, sizeof(model));
+
+    CreateFrameUniformBuffers(&RenderBackend, &Result->UniformBuffers, &Result->UniformBuffersMemory, &Result->UniformBuffersMapped);
 
     return Result;
 }

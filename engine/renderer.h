@@ -31,6 +31,7 @@ struct model
     std::vector<void*> UniformBuffersMapped;
 
     std::vector<VkDescriptorSet> DescriptorSets;
+    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
 };
 
 buffer_group* GetModelBufferGroup(model_type ModelType);

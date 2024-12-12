@@ -30,3 +30,6 @@
 *.exe
 *.out
 *.app
+bin/app.dSYM/Contents/Info.plist
+bin/app.dSYM/Contents/Resources/DWARF/app
+bin/app.dSYM/Contents/Resources/Relocations/aarch64/app.yml

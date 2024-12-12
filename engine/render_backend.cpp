@@ -778,7 +778,8 @@ void InitializeRenderBackend(game_memory* GameMemory)
     //NOTE(Lyubomir): Create Uniform Buffers
     RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 5.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
-    CreateFrameUniformBuffers(&RenderBackend, &RenderBackend.UniformBuffers, &RenderBackend.UniformBuffersMemory, &RenderBackend.UniformBuffersMapped);
+    //CreateFrameUniformBuffers(&RenderBackend, &RenderBackend.CubeModel->UniformBuffers,
+                             // &RenderBackend.CubeModel->UniformBuffersMemory, &RenderBackend.CubeModel->UniformBuffersMapped);
 
     CreateFrameUniformBuffers(&RenderBackend, &RenderBackend.UniformBuffers2, &RenderBackend.UniformBuffersMemory2, &RenderBackend.UniformBuffersMapped2);
 
@@ -809,8 +810,8 @@ void InitializeRenderBackend(game_memory* GameMemory)
         RenderBackend.DescriptorSetLayouts2[Index] = RenderBackend.DescriptorSetLayout;
     }
 
-    //model* CubeModel = RenderBackend.CubeModel;
-    CreateDescriptorSets(&RenderBackend, &RenderBackend.DescriptorSetLayouts, &RenderBackend.DescriptorSets, &RenderBackend.DescriptorPool, &RenderBackend.UniformBuffers);
+    model* CubeModel = RenderBackend.CubeModel;
+    CreateDescriptorSets(&RenderBackend, &RenderBackend.DescriptorSetLayouts, &CubeModel->DescriptorSets, &RenderBackend.DescriptorPool, &CubeModel->UniformBuffers);
 
     CreateDescriptorSets(&RenderBackend, &RenderBackend.DescriptorSetLayouts2, &RenderBackend.DescriptorSets2, &RenderBackend.DescriptorPool, &RenderBackend.UniformBuffers2);
 
@@ -890,7 +891,7 @@ void Render()
                                      Camera.NearPlane, Camera.FarPlane);
     UniformBuffer.ProjectionMatrix[1][1] *= -1;
 
-    memcpy(RenderBackend.UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
+    memcpy(RenderBackend.CubeModel->UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Reset Fences And Command Buffer
@@ -949,7 +950,7 @@ void Render()
     vkCmdBindIndexBuffer(RenderBackend.CommandBuffers[CurrentFrame], RenderBackend.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            RenderBackend.PipelineLayout, 0, 1, &RenderBackend.DescriptorSets[CurrentFrame], 0, nullptr);
+                            RenderBackend.PipelineLayout, 0, 1, &RenderBackend.CubeModel->DescriptorSets[CurrentFrame], 0, nullptr);
 
     vkCmdDrawIndexed(RenderBackend.CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
 
@@ -1055,8 +1056,8 @@ void ShutdownRenderBackend()
 
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
-        vkDestroyBuffer(RenderBackend.Device, RenderBackend.UniformBuffers[Index], nullptr);
-        vkFreeMemory(RenderBackend.Device, RenderBackend.UniformBuffersMemory[Index], nullptr);
+        vkDestroyBuffer(RenderBackend.Device, RenderBackend.CubeModel->UniformBuffers[Index], nullptr);
+        vkFreeMemory(RenderBackend.Device, RenderBackend.CubeModel->UniformBuffersMemory[Index], nullptr);
     }
 
     vkDestroyDescriptorPool(RenderBackend.Device, RenderBackend.DescriptorPool, nullptr);
