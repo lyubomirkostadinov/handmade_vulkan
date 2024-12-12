@@ -42,3 +42,26 @@ model* CreateModel(memory_arena* Arena, model_type ModelType, glm::vec3 Position
 
     return Result;
 }
+
+void UpdateModel(model* Model, camera* Camera)
+{
+    static auto StartTime = std::chrono::high_resolution_clock::now();
+    auto CurrentTime = std::chrono::high_resolution_clock::now();
+    float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
+
+    glm::mat4 ModelMatrix = glm::mat4(1.0f);
+    ModelMatrix = glm::translate(ModelMatrix, Model->Position); // position
+    ModelMatrix = glm::rotate(ModelMatrix, Time * glm::radians(90.0f), Model->Rotation); // rotation
+    ModelMatrix = glm::scale(ModelMatrix, Model->Scale); // scale
+
+    uniform_buffer UniformBuffer = {};
+    UniformBuffer.ModelMatrix = ModelMatrix;
+    UniformBuffer.ViewMatrix = glm::lookAt(Camera->Position, Camera->Target, Camera->Up);
+    UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(Camera->AspectRatio),
+                                     (float) RenderBackend.SwapChainExtent.width /
+                                     (float) RenderBackend.SwapChainExtent.height,
+                                     Camera->NearPlane, Camera->FarPlane);
+    UniformBuffer.ProjectionMatrix[1][1] *= -1;
+
+    memcpy(Model->UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
+}

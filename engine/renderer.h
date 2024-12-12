@@ -36,3 +36,6 @@ struct model
 
 buffer_group* GetModelBufferGroup(model_type ModelType);
 model* CreateModel(memory_arena* Arena, model_type ModelType,  glm::vec3 Position, glm::vec3 Rotation, glm::vec3 Scale);
+
+class camera;
+void UpdateModel(model* Model, camera* Camera);

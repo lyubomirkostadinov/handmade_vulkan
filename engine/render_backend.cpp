@@ -863,15 +863,6 @@ void Render()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Update Uniform Buffer
-    static auto StartTime = std::chrono::high_resolution_clock::now();
-    auto CurrentTime = std::chrono::high_resolution_clock::now();
-    float Time = std::chrono::duration<float, std::chrono::seconds::period>(CurrentTime - StartTime).count();
-
-    glm::mat4 ModelMatrix = glm::mat4(1.0f);
-    ModelMatrix = glm::translate(ModelMatrix, glm::vec3(0.0f, 0.0f, 0.0f)); // position
-    ModelMatrix = glm::rotate(ModelMatrix, Time * glm::radians(90.0f), glm::vec3(0.0f, 5.0f, 1.0f)); // rotation
-    ModelMatrix = glm::scale(ModelMatrix, glm::vec3(1.3f, 1.3f, 1.3f)); // scale
-
     camera Camera = {};
     Camera.Position = glm::vec3(2.0f, 2.0f, 10.0f);
     Camera.Target = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -880,16 +871,7 @@ void Render()
     Camera.NearPlane = 0.1f;
     Camera.FarPlane = 100.0f;
 
-    uniform_buffer UniformBuffer = {};
-    UniformBuffer.ModelMatrix = ModelMatrix;
-    UniformBuffer.ViewMatrix = glm::lookAt(Camera.Position, Camera.Target, Camera.Up);
-    UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(Camera.AspectRatio),
-                                     (float) RenderBackend.SwapChainExtent.width /
-                                     (float) RenderBackend.SwapChainExtent.height,
-                                     Camera.NearPlane, Camera.FarPlane);
-    UniformBuffer.ProjectionMatrix[1][1] *= -1;
-
-    memcpy(RenderBackend.CubeModel->UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
+    UpdateModel(RenderBackend.CubeModel2, &Camera);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Reset Fences And Command Buffer
@@ -955,21 +937,7 @@ void Render()
     //////////////////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Draw Second Cube
 
-    glm::mat4 ModelMatrix2 = glm::mat4(1.0f);
-    ModelMatrix2 = glm::translate(ModelMatrix2, glm::vec3(4.0f, 0.0f, 0.0f)); // position
-    ModelMatrix2 = glm::rotate(ModelMatrix2, Time * glm::radians(90.0f), glm::vec3(2.0f, 0.0f, 5.0f)); // rotation
-    ModelMatrix2 = glm::scale(ModelMatrix2, glm::vec3(1.0f, 1.0f, 1.0f)); // scale
-
-    uniform_buffer UniformBuffer2 = {};
-    UniformBuffer2.ModelMatrix = ModelMatrix2;
-    UniformBuffer2.ViewMatrix = glm::lookAt(Camera.Position, Camera.Target, Camera.Up);
-    UniformBuffer2.ProjectionMatrix = glm::perspective(glm::radians(Camera.AspectRatio),
-                                     (float) RenderBackend.SwapChainExtent.width /
-                                     (float) RenderBackend.SwapChainExtent.height,
-                                     Camera.NearPlane, Camera.FarPlane);
-    UniformBuffer2.ProjectionMatrix[1][1] *= -1;
-
-    memcpy(RenderBackend.CubeModel2->UniformBuffersMapped[CurrentFrame], &UniformBuffer2, sizeof(UniformBuffer2));
+    UpdateModel(RenderBackend.CubeModel, &Camera);
 
     vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, RenderBackend.PipelineLayout, 0, 1, &RenderBackend.CubeModel2->DescriptorSets[CurrentFrame], 0, nullptr);
 
