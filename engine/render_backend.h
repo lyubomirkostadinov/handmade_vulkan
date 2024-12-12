@@ -82,19 +82,7 @@ struct render_backend
 
     memory_arena GraphicsArena;
     model* CubeModel;
-
-    //TODO(Lyubomir): Sort this out
-    //std::vector<VkBuffer> UniformBuffers;
-    //std::vector<VkDeviceMemory> UniformBuffersMemory;
-    //std::vector<void*> UniformBuffersMapped;
-    //std::vector<VkDescriptorSet> DescriptorSets;
-    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
-
-    std::vector<VkBuffer> UniformBuffers2;
-    std::vector<VkDeviceMemory> UniformBuffersMemory2;
-    std::vector<void*> UniformBuffersMapped2;
-    std::vector<VkDescriptorSet> DescriptorSets2;
-    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts2;
+    model* CubeModel2;
 } RenderBackend;
 
 uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties);
