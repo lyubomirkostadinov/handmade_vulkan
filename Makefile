@@ -1,9 +1,10 @@
 ASSEMBLY := engine
 BUILD_DIR := bin
 GAME_DIR := game
+STB_INCLUDE_PATH := libs
 
 COMPILER_FLAGS := -v -std=c++11
-INCLUDE_FLAGS := -Iengine -I$(VULKAN_SDK)/include
+INCLUDE_FLAGS := -Iengine -I$(VULKAN_SDK)/include -I$(STB_INCLUDE_PATH)
 LINKER_FLAGS := -L$(VULKAN_SDK)/lib -lvulkan -framework Cocoa -framework QuartzCore -framework Foundation -framework Metal -rpath @loader_path/
 
 SRC_FILES := $(ASSEMBLY)/main.cpp $(ASSEMBLY)/platform_macos.mm

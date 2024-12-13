@@ -1,6 +1,9 @@
 #include "render_backend.h"
 #include "renderer.cpp"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../libs/stb_image.h"
+
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT MessageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT* CallbackData,
@@ -717,6 +720,19 @@ void InitializeRenderBackend(game_memory* GameMemory)
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Texture Image
+    int32 TextureWidth;
+    int32 TextureHeight;
+    int32 TextureChannels;
+    stbi_uc* Pixels = stbi_load("../resources/textures/statue_test.jpg", &TextureWidth, &TextureHeight, &TextureChannels, STBI_rgb_alpha);
+    VkDeviceSize ImageSize = TextureWidth * TextureHeight * 4;
+
+    if (!Pixels)
+    {
+        printf("Failed to load texture image!\n");
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vertex Buffer
     VkDeviceSize VertexBufferSize = sizeof(Vertices[0]) * NumVertices;
 
@@ -854,15 +870,6 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
 void Render()
 {
-    vkWaitForFences(RenderBackend.Device, 1, &RenderBackend.InFlightFences[CurrentFrame], VK_TRUE, UINT64_MAX);
-
-    //TODO(Lyubomir): Handle SwapChain recreation when the window size changes!!!
-
-    uint32_t ImageIndex;
-    vkAcquireNextImageKHR(RenderBackend.Device, RenderBackend.SwapChain, UINT64_MAX, RenderBackend.ImageAvailableSemaphores[CurrentFrame], 0, &ImageIndex);
-
-    //////////////////////////////////////////////////////////////////////////////////////////
-    //NOTE(Lyubomir): Update Uniform Buffer
     camera Camera = {};
     Camera.Position = glm::vec3(2.0f, 2.0f, 10.0f);
     Camera.Target = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -871,6 +878,17 @@ void Render()
     Camera.NearPlane = 0.1f;
     Camera.FarPlane = 100.0f;
 
+    vkWaitForFences(RenderBackend.Device, 1, &RenderBackend.InFlightFences[CurrentFrame], VK_TRUE, UINT64_MAX);
+
+    //TODO(Lyubomir): Handle SwapChain recreation when the window size changes!!!
+
+    uint32_t ImageIndex;
+    vkAcquireNextImageKHR(RenderBackend.Device, RenderBackend.SwapChain, UINT64_MAX, RenderBackend.ImageAvailableSemaphores[CurrentFrame], 0, &ImageIndex);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Update Uniform Buffers
+
+    UpdateModel(RenderBackend.CubeModel, &Camera);
     UpdateModel(RenderBackend.CubeModel2, &Camera);
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -936,8 +954,6 @@ void Render()
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Draw Second Cube
-
-    UpdateModel(RenderBackend.CubeModel, &Camera);
 
     vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, RenderBackend.PipelineLayout, 0, 1, &RenderBackend.CubeModel2->DescriptorSets[CurrentFrame], 0, nullptr);
 
