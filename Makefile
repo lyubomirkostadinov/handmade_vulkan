@@ -14,7 +14,7 @@ GAME_LIB := $(BUILD_DIR)/libgame.dylib
 .PHONY: all clean build
 
 # Add a default target
-all: build
+debug: build
 
 # Ensure we build the app and the game library
 build: $(GAME_LIB) $(BUILD_DIR)/app

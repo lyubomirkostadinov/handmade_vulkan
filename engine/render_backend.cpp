@@ -1,5 +1,6 @@
 #include "render_backend.h"
 #include "renderer.cpp"
+#include "vulkan/vulkan_core.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../libs/stb_image.h"
@@ -33,7 +34,179 @@ uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties)
         return MemoryProperties.memoryTypeCount + 1;
 }
 
-void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyFlags MemoryProperties, VkBuffer& Buffer, VkDeviceMemory& BufferMemory)
+VkCommandBuffer BeginSingleCommandBuffer()
+{
+    VkCommandBufferAllocateInfo AllocateInfo = {};
+    AllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    AllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    AllocateInfo.commandPool = RenderBackend.CommandPool;
+    AllocateInfo.commandBufferCount = 1;
+
+    VkCommandBuffer CommandBuffer;
+    vkAllocateCommandBuffers(RenderBackend.Device, &AllocateInfo, &CommandBuffer);
+
+    VkCommandBufferBeginInfo BeginInfo = {};
+    BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
+
+    return CommandBuffer;
+}
+
+void EndSingleCommandBuffer(VkCommandBuffer CommandBuffer)
+{
+    vkEndCommandBuffer(CommandBuffer);
+
+    VkSubmitInfo SubmitInfo = {};
+    SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    SubmitInfo.commandBufferCount = 1;
+    SubmitInfo.pCommandBuffers = &CommandBuffer;
+
+    vkQueueSubmit(RenderBackend.GraphicsQueue, 1, &SubmitInfo, 0);
+    vkQueueWaitIdle(RenderBackend.GraphicsQueue);
+
+    vkFreeCommandBuffers(RenderBackend.Device, RenderBackend.CommandPool, 1, &CommandBuffer);
+}
+
+void TransitionImageLayout(VkImage Image, VkFormat Format, VkImageLayout OldLayout, VkImageLayout NewLayout)
+{
+    VkCommandBuffer CommandBuffer = BeginSingleCommandBuffer();
+
+    VkImageMemoryBarrier Barrier = {};
+    Barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    Barrier.oldLayout = OldLayout;
+    Barrier.newLayout = NewLayout;
+    Barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    Barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    Barrier.image = Image;
+    Barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    Barrier.subresourceRange.baseMipLevel = 0;
+    Barrier.subresourceRange.levelCount = 1;
+    Barrier.subresourceRange.baseArrayLayer = 0;
+    Barrier.subresourceRange.layerCount = 1;
+
+    VkPipelineStageFlags SourceStage;
+    VkPipelineStageFlags DestinationStage;
+
+    if (OldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+        NewLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+    {
+        Barrier.srcAccessMask = 0;
+        Barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        SourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        DestinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if (OldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+             NewLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    {
+        Barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        SourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        DestinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else
+    {
+        printf("Unsupported layout transition!\n");
+    }
+
+    vkCmdPipelineBarrier(CommandBuffer, SourceStage, DestinationStage, 0, 0, nullptr, 0, nullptr, 1, &Barrier);
+
+    EndSingleCommandBuffer(CommandBuffer);
+}
+
+void CreateImage(uint32 TextureWidth, uint32 TextureHeight, VkFormat Format,
+                 VkImageTiling Tiling, VkImageUsageFlags Usage,
+                 VkMemoryPropertyFlags Properties, VkImage& Image,
+                 VkDeviceMemory& ImageMemory)
+{
+    VkImageCreateInfo ImageInfo = {};
+    ImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    ImageInfo.imageType = VK_IMAGE_TYPE_2D;
+    ImageInfo.extent.width = TextureWidth;
+    ImageInfo.extent.height = TextureHeight;
+    ImageInfo.extent.depth = 1;
+    ImageInfo.mipLevels = 1;
+    ImageInfo.arrayLayers = 1;
+    ImageInfo.format = Format;
+    ImageInfo.tiling = Tiling;
+    ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    ImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    ImageInfo.flags = 0; // Optional
+
+    if (vkCreateImage(RenderBackend.Device, &ImageInfo, nullptr, &Image) != VK_SUCCESS)
+    {
+        printf("Failed to create image!\n");
+    }
+
+    VkMemoryRequirements MemoryRequirements;
+    vkGetImageMemoryRequirements(RenderBackend.Device, Image, &MemoryRequirements);
+
+    VkMemoryAllocateInfo AllocateInfo = {};
+    AllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    AllocateInfo.allocationSize = MemoryRequirements.size;
+    AllocateInfo.memoryTypeIndex = FindMemoryType(MemoryRequirements.memoryTypeBits, Properties);
+
+    if (vkAllocateMemory(RenderBackend.Device, &AllocateInfo, nullptr, &ImageMemory) != VK_SUCCESS)
+    {
+        printf("Failed to allocate image memory!\n");
+    }
+
+    vkBindImageMemory(RenderBackend.Device, Image, ImageMemory, 0);
+}
+
+VkImageView CreateImageView(VkImage Image, VkFormat Format)
+{
+    VkImageViewCreateInfo TextureViewInfo = {};
+    TextureViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    TextureViewInfo.image = Image;
+    TextureViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    TextureViewInfo.format = Format;
+    TextureViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    TextureViewInfo.subresourceRange.baseMipLevel = 0;
+    TextureViewInfo.subresourceRange.levelCount = 1;
+    TextureViewInfo.subresourceRange.baseArrayLayer = 0;
+    TextureViewInfo.subresourceRange.layerCount = 1;
+
+    VkImageView ImageView;
+    if (vkCreateImageView(RenderBackend.Device, &TextureViewInfo, nullptr, &ImageView) != VK_SUCCESS)
+    {
+        printf("Failed to create texture image view!\n");
+    }
+
+    return ImageView;
+}
+
+void CopyBufferToImage(VkBuffer Buffer, VkImage Image, uint32 ImageWidth, uint32 ImageHeight)
+{
+    VkCommandBuffer CommandBuffer = BeginSingleCommandBuffer();
+
+    VkOffset3D ImageOffset = {0, 0, 0};
+    VkExtent3D ImageExtent = {ImageWidth, ImageHeight, 1};
+
+    VkBufferImageCopy BufferRegion = {};
+    BufferRegion.bufferOffset = 0;
+    BufferRegion.bufferRowLength = 0;
+    BufferRegion.bufferImageHeight = 0;
+    BufferRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    BufferRegion.imageSubresource.mipLevel = 0;
+    BufferRegion.imageSubresource.baseArrayLayer = 0;
+    BufferRegion.imageSubresource.layerCount = 1;
+    BufferRegion.imageOffset = ImageOffset;
+    BufferRegion.imageExtent = ImageExtent;
+
+    vkCmdCopyBufferToImage(CommandBuffer, Buffer, Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &BufferRegion);
+
+    EndSingleCommandBuffer(CommandBuffer);
+}
+
+void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage,
+                  VkMemoryPropertyFlags MemoryProperties,
+                  VkBuffer& Buffer, VkDeviceMemory& BufferMemory)
 {
     VkBufferCreateInfo BufferInfo = {};
     BufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -68,38 +241,13 @@ void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyF
 
 void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size)
 {
-    VkCommandBufferAllocateInfo AllocateInfo = {};
-    AllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    AllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    AllocateInfo.commandPool = RenderBackend.CommandPool;
-    AllocateInfo.commandBufferCount = 1;
-
-    VkCommandBuffer CommandBuffer;
-    vkAllocateCommandBuffers(RenderBackend.Device, &AllocateInfo, &CommandBuffer);
-
-    VkCommandBufferBeginInfo BeginInfo = {};
-    BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
+    VkCommandBuffer CommandBuffer = BeginSingleCommandBuffer();
 
     VkBufferCopy CopyRegion = {};
-    CopyRegion.srcOffset = 0; // Optional
-    CopyRegion.dstOffset = 0; // Optional
     CopyRegion.size = Size;
     vkCmdCopyBuffer(CommandBuffer, SourceBuffer, DestinationBuffer, 1, &CopyRegion);
 
-    vkEndCommandBuffer(CommandBuffer);
-
-    VkSubmitInfo SubmitInfo = {};
-    SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    SubmitInfo.commandBufferCount = 1;
-    SubmitInfo.pCommandBuffers = &CommandBuffer;
-
-    vkQueueSubmit(RenderBackend.GraphicsQueue, 1, &SubmitInfo, 0);
-    vkQueueWaitIdle(RenderBackend.GraphicsQueue);
-
-    vkFreeCommandBuffers(RenderBackend.Device, RenderBackend.CommandPool, 1, &CommandBuffer);
+    EndSingleCommandBuffer(CommandBuffer);
 }
 
 void CreateFrameUniformBuffers(render_backend* RenderBackend,
@@ -150,18 +298,29 @@ void CreateDescriptorSets(render_backend* RenderBackend,
         DescriptorBufferInfo.offset = 0;
         DescriptorBufferInfo.range = sizeof(uniform_buffer);
 
-        VkWriteDescriptorSet DescriptorWrite = {};
-        DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        DescriptorWrite.dstSet = (*DescriptorSets)[Index];
-        DescriptorWrite.dstBinding = 0;
-        DescriptorWrite.dstArrayElement = 0;
-        DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        DescriptorWrite.descriptorCount = 1;
-        DescriptorWrite.pBufferInfo = &DescriptorBufferInfo;
-        DescriptorWrite.pImageInfo = nullptr; // Optional
-        DescriptorWrite.pTexelBufferView = nullptr; // Optional
+        VkDescriptorImageInfo DescriptorImageInfo = {};
+        DescriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        DescriptorImageInfo.imageView = RenderBackend->TextureImageView;
+        DescriptorImageInfo.sampler = RenderBackend->TextureSampler;
 
-        vkUpdateDescriptorSets(RenderBackend->Device, 1, &DescriptorWrite, 0, nullptr);
+        VkWriteDescriptorSet DescriptorWrite[2] = {};
+        DescriptorWrite[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        DescriptorWrite[0].dstSet = (*DescriptorSets)[Index];
+        DescriptorWrite[0].dstBinding = 0;
+        DescriptorWrite[0].dstArrayElement = 0;
+        DescriptorWrite[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        DescriptorWrite[0].descriptorCount = 1;
+        DescriptorWrite[0].pBufferInfo = &DescriptorBufferInfo;
+
+        DescriptorWrite[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        DescriptorWrite[1].dstSet = (*DescriptorSets)[Index];
+        DescriptorWrite[1].dstBinding = 1;
+        DescriptorWrite[1].dstArrayElement = 0;
+        DescriptorWrite[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        DescriptorWrite[1].descriptorCount = 1;
+        DescriptorWrite[1].pImageInfo = &DescriptorImageInfo;
+
+        vkUpdateDescriptorSets(RenderBackend->Device, ArrayCount(DescriptorWrite), DescriptorWrite, 0, nullptr);
     }
 }
 
@@ -170,23 +329,31 @@ void InitializeRenderBackend(game_memory* GameMemory)
     InitializeArena(&RenderBackend.GraphicsArena, GameMemory->PermanentStorageSize - sizeof(game_memory),
                     (uint8 *)GameMemory->PermanentStorage + sizeof(game_memory));
 
-    vertex Vertices[NumVertices] = {};
-    Vertices[0].VertexPosition   =    glm::vec3(-0.5f, -0.5f, -0.5f);
-    Vertices[0].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[1].VertexPosition   =    glm::vec3(-0.5f,  0.5f, -0.5f);
-    Vertices[1].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[2].VertexPosition   =    glm::vec3(0.5f, 0.5f, -0.5f);
-    Vertices[2].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[3].VertexPosition   =    glm::vec3(0.5f, -0.5f, -0.5f);
-    Vertices[3].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[4].VertexPosition   =    glm::vec3(-0.5f, -0.5f,  0.5f);
-    Vertices[4].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[5].VertexPosition   =    glm::vec3(-0.5f, 0.5f, 0.5f);
-    Vertices[5].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[6].VertexPosition   =    glm::vec3(0.5f, 0.5f, 0.5f);
-    Vertices[6].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[7].VertexPosition   =    glm::vec3(0.5f, -0.5f, 0.5f);
-    Vertices[7].VertexColor      =    glm::vec3(1.0, 0.0, 0.0);
+    vertex Vertices[NumVertices]  = {};
+    Vertices[0].VertexPosition    =    glm::vec3(-0.5f, -0.5f, -0.5f);
+    Vertices[0].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[0].TextureCoordinate =    glm::vec2(1.0, 0.0);
+    Vertices[1].VertexPosition    =    glm::vec3(-0.5f,  0.5f, -0.5f);
+    Vertices[1].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[1].TextureCoordinate =    glm::vec2(0.0, 0.0);
+    Vertices[2].VertexPosition    =    glm::vec3(0.5f, 0.5f, -0.5f);
+    Vertices[2].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[2].TextureCoordinate =    glm::vec2(0.0, 1.0);
+    Vertices[3].VertexPosition    =    glm::vec3(0.5f, -0.5f, -0.5f);
+    Vertices[3].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[3].TextureCoordinate =    glm::vec2(1.0, 1.0);
+    Vertices[4].VertexPosition    =    glm::vec3(-0.5f, -0.5f,  0.5f);
+    Vertices[4].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[4].TextureCoordinate =    glm::vec2(1.0, 0.0);
+    Vertices[5].VertexPosition    =    glm::vec3(-0.5f, 0.5f, 0.5f);
+    Vertices[5].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[5].TextureCoordinate =    glm::vec2(0.0, 0.0);
+    Vertices[6].VertexPosition    =    glm::vec3(0.5f, 0.5f, 0.5f);
+    Vertices[6].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[6].TextureCoordinate =    glm::vec2(0.0, 1.0);
+    Vertices[7].VertexPosition    =    glm::vec3(0.5f, -0.5f, 0.5f);
+    Vertices[7].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    Vertices[7].TextureCoordinate =    glm::vec2(1.0, 1.0);
 
     uint32 Indices[NumIndices] =
     {
@@ -203,7 +370,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     BindingDescription.stride = sizeof(vertex);
     BindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription AttributeDescriptions[2] = {};
+    VkVertexInputAttributeDescription AttributeDescriptions[3] = {};
     AttributeDescriptions[0].binding = 0;
     AttributeDescriptions[0].location = 0;
     AttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -213,6 +380,11 @@ void InitializeRenderBackend(game_memory* GameMemory)
     AttributeDescriptions[1].location = 1;
     AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     AttributeDescriptions[1].offset = offsetof(vertex, VertexColor);
+
+    AttributeDescriptions[2].binding = 0;
+    AttributeDescriptions[2].location = 2;
+    AttributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+    AttributeDescriptions[2].offset = offsetof(vertex, TextureCoordinate);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vulkan Instance And Setup Validation Layer
@@ -335,7 +507,6 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Logical Device
-
     std::vector<VkDeviceQueueCreateInfo> QueueCreateInfos;
 
     float queuePriority = 1.0f;
@@ -348,6 +519,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     QueueCreateInfos.push_back(QueueCreateInfo);
 
     VkPhysicalDeviceFeatures DeviceFeatures = {};
+    DeviceFeatures.samplerAnisotropy = VK_TRUE;
 
     VkDeviceCreateInfo DeviceCreateInfo = {};
     DeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -461,27 +633,10 @@ void InitializeRenderBackend(game_memory* GameMemory)
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Image Views
     RenderBackend.SwapChainImageViews.resize(RenderBackend.SwapChainImages.size());
-    for (uint32 Index = 0; Index < RenderBackend.SwapChainImages.size(); Index++)
-    {
-        VkImageViewCreateInfo ImageViewCreateInfo = {};
-        ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        ImageViewCreateInfo.image = RenderBackend.SwapChainImages[Index];
-        ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        ImageViewCreateInfo.format = RenderBackend.SwapChainImageFormat;
-        ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
-        ImageViewCreateInfo.subresourceRange.levelCount = 1;
-        ImageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-        ImageViewCreateInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(RenderBackend.Device, &ImageViewCreateInfo, nullptr, &RenderBackend.SwapChainImageViews[Index]) != VK_SUCCESS)
-        {
-            printf("Failed to create image views!\n");
-        }
+    for (uint32 Index = 0; Index < RenderBackend.SwapChainImages.size(); ++Index)
+    {
+        RenderBackend.SwapChainImageViews[Index] = CreateImageView(RenderBackend.SwapChainImages[Index], RenderBackend.SwapChainImageFormat);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
@@ -535,10 +690,19 @@ void InitializeRenderBackend(game_memory* GameMemory)
     UniformBufferLayoutBinding.descriptorCount = 1;
     UniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+    VkDescriptorSetLayoutBinding SamplerLayoutBinding = {};
+    SamplerLayoutBinding.binding = 1;
+    SamplerLayoutBinding.descriptorCount = 1;
+    SamplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    SamplerLayoutBinding.pImmutableSamplers = nullptr;
+    SamplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutBinding Bindings[2] = {UniformBufferLayoutBinding, SamplerLayoutBinding};
+
     VkDescriptorSetLayoutCreateInfo UniformDescriptorLayoutInfo = {};
     UniformDescriptorLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    UniformDescriptorLayoutInfo.bindingCount = 1;
-    UniformDescriptorLayoutInfo.pBindings = &UniformBufferLayoutBinding;
+    UniformDescriptorLayoutInfo.bindingCount = ArrayCount(Bindings);
+    UniformDescriptorLayoutInfo.pBindings = Bindings;
 
     if (vkCreateDescriptorSetLayout(RenderBackend.Device, &UniformDescriptorLayoutInfo, nullptr, &RenderBackend.DescriptorSetLayout) != VK_SUCCESS)
     {
@@ -590,7 +754,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     VkPipelineVertexInputStateCreateInfo VertexInputInfo = {};
     VertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     VertexInputInfo.vertexBindingDescriptionCount = 1;
-    VertexInputInfo.vertexAttributeDescriptionCount = 2;
+    VertexInputInfo.vertexAttributeDescriptionCount = 3;
     VertexInputInfo.pVertexBindingDescriptions = &BindingDescription;
     VertexInputInfo.pVertexAttributeDescriptions = AttributeDescriptions;
 
@@ -732,6 +896,68 @@ void InitializeRenderBackend(game_memory* GameMemory)
         printf("Failed to load texture image!\n");
     }
 
+    VkBuffer StagingTextureBuffer;
+    VkDeviceMemory StagingTextureBufferMemory;
+
+    CreateBuffer(ImageSize,
+                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 StagingTextureBuffer, StagingTextureBufferMemory);
+
+    void* TextureData;
+    vkMapMemory(RenderBackend.Device, StagingTextureBufferMemory, 0, ImageSize, 0, &TextureData);
+    memcpy(TextureData, Pixels, static_cast<size_t>(ImageSize));
+    vkUnmapMemory(RenderBackend.Device, StagingTextureBufferMemory);
+
+    stbi_image_free(Pixels);
+
+    CreateImage(TextureWidth, TextureHeight,
+                VK_FORMAT_R8G8B8A8_SRGB,
+                VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                RenderBackend.TextureImage, RenderBackend.TextureImageMemory);
+
+    TransitionImageLayout(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    CopyBufferToImage(StagingTextureBuffer, RenderBackend.TextureImage, static_cast<uint32>(TextureWidth), static_cast<uint32>(TextureHeight));
+    TransitionImageLayout(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    vkDestroyBuffer(RenderBackend.Device, StagingTextureBuffer, nullptr);
+    vkFreeMemory(RenderBackend.Device, StagingTextureBufferMemory, nullptr);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Texture Image View
+    RenderBackend.TextureImageView = CreateImageView(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Texture Sampler
+    VkPhysicalDeviceProperties DeviceProperties = {};
+    vkGetPhysicalDeviceProperties(RenderBackend.PhysicalDevice, &DeviceProperties);
+
+    VkSamplerCreateInfo TextureSamplerInfo = {};
+    TextureSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    TextureSamplerInfo.magFilter = VK_FILTER_LINEAR;
+    TextureSamplerInfo.minFilter = VK_FILTER_LINEAR;
+    TextureSamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    TextureSamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    TextureSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    TextureSamplerInfo.anisotropyEnable = VK_TRUE;
+    TextureSamplerInfo.maxAnisotropy = DeviceProperties.limits.maxSamplerAnisotropy;
+    TextureSamplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    TextureSamplerInfo.unnormalizedCoordinates = VK_FALSE;
+    TextureSamplerInfo.compareEnable = VK_FALSE;
+    TextureSamplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    TextureSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    TextureSamplerInfo.mipLodBias = 0.0f;
+    TextureSamplerInfo.minLod = 0.0f;
+    TextureSamplerInfo.maxLod = 0.0f;
+
+    if (vkCreateSampler(RenderBackend.Device, &TextureSamplerInfo, nullptr, &RenderBackend.TextureSampler) != VK_SUCCESS)
+    {
+        printf("Failed to create texture sampler!\n");
+    }
+
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vertex Buffer
     VkDeviceSize VertexBufferSize = sizeof(Vertices[0]) * NumVertices;
@@ -798,14 +1024,17 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Pool
-    VkDescriptorPoolSize DescriptorPoolSize = {};
-    DescriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    DescriptorPoolSize.descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
+    VkDescriptorPoolSize DescriptorPoolSize[2] = {};
+    DescriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    DescriptorPoolSize[0].descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
+    DescriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    DescriptorPoolSize[1].descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
 
     VkDescriptorPoolCreateInfo DescriptorPoolInfo = {};
     DescriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    DescriptorPoolInfo.poolSizeCount = 1;
-    DescriptorPoolInfo.pPoolSizes = &DescriptorPoolSize;
+    DescriptorPoolInfo.poolSizeCount = ArrayCount(DescriptorPoolSize);
+    DescriptorPoolInfo.pPoolSizes = DescriptorPoolSize;
+    //TODO(Lyubomir): MAX_FRAMES_IN_FLIGHT * number of models????
     DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
 
     if (vkCreateDescriptorPool(RenderBackend.Device, &DescriptorPoolInfo, nullptr, &RenderBackend.DescriptorPool) != VK_SUCCESS)
@@ -1035,6 +1264,12 @@ void ShutdownRenderBackend()
     }
 
     vkDestroySwapchainKHR(RenderBackend.Device, RenderBackend.SwapChain, nullptr);
+
+    vkDestroySampler(RenderBackend.Device, RenderBackend.TextureSampler, nullptr);
+    vkDestroyImageView(RenderBackend.Device, RenderBackend.TextureImageView, nullptr);
+
+    vkDestroyImage(RenderBackend.Device, RenderBackend.TextureImage, nullptr);
+    vkFreeMemory(RenderBackend.Device, RenderBackend.TextureImageMemory, nullptr);
 
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {

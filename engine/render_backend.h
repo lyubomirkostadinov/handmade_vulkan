@@ -36,6 +36,7 @@ struct vertex
 {
     glm::vec3 VertexPosition;
     glm::vec3 VertexColor;
+    glm::vec2 TextureCoordinate;
 };
 
 struct uniform_buffer
@@ -80,6 +81,11 @@ struct render_backend
     VkDescriptorPool DescriptorPool;
     VkDescriptorSetLayout DescriptorSetLayout;
 
+    VkImage TextureImage;
+    VkDeviceMemory TextureImageMemory;
+    VkImageView TextureImageView;
+    VkSampler TextureSampler;
+
     memory_arena GraphicsArena;
     model* CubeModel;
     model* CubeModel2;
@@ -87,7 +93,24 @@ struct render_backend
 
 uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties);
 
-void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyFlags MemoryProperties, VkBuffer& Buffer, VkDeviceMemory& BufferMemory);
+VkCommandBuffer BeginSingleCommandBuffer();
+
+void EndSingleCommandBuffer(VkCommandBuffer CommandBuffer);
+
+void TransitionImageLayout(VkImage Image, VkFormat Format, VkImageLayout OldLayout, VkImageLayout NewLayout);
+
+void CreateImage(uint32_t width, uint32_t height, VkFormat format,
+                 VkImageTiling tiling, VkImageUsageFlags usage,
+                 VkMemoryPropertyFlags properties, VkImage& image,
+                 VkDeviceMemory& imageMemory);
+
+VkImageView CreateImageView(VkImage Image, VkFormat Format);
+
+void CopyBufferToImage(VkBuffer Buffer, VkImage Image, uint32 ImageWidth, uint32 ImageHeight);
+
+void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage,
+                  VkMemoryPropertyFlags MemoryProperties,
+                  VkBuffer& Buffer, VkDeviceMemory& BufferMemory);
 
 void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size);
 
