@@ -2,12 +2,24 @@
 
 #include "render_backend.h"
 #include "memory_arena.h"
+#include <CoreVideo/CoreVideo.h>
 #include <vector>
 
 struct buffer_group
 {
     VkBuffer* VertexBuffer;
     VkBuffer* IndexBuffer;
+};
+
+struct texture
+{
+    int32 TextureWidth;
+    int32 TextureHeight;
+    int32 TextureChannels;
+
+    VkBuffer StagingTextureBuffer;
+    VkDeviceMemory StagingTextureBufferMemory;
+    void* TextureData;
 };
 
 enum model_type

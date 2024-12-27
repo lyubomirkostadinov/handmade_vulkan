@@ -159,14 +159,14 @@ void CreateImage(uint32 TextureWidth, uint32 TextureHeight, VkFormat Format,
     vkBindImageMemory(RenderBackend.Device, Image, ImageMemory, 0);
 }
 
-VkImageView CreateImageView(VkImage Image, VkFormat Format)
+VkImageView CreateImageView(VkImage Image, VkFormat Format, VkImageAspectFlags AspectFlags)
 {
     VkImageViewCreateInfo TextureViewInfo = {};
     TextureViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     TextureViewInfo.image = Image;
     TextureViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     TextureViewInfo.format = Format;
-    TextureViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    TextureViewInfo.subresourceRange.aspectMask = AspectFlags;
     TextureViewInfo.subresourceRange.baseMipLevel = 0;
     TextureViewInfo.subresourceRange.levelCount = 1;
     TextureViewInfo.subresourceRange.baseArrayLayer = 0;
@@ -636,11 +636,25 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     for (uint32 Index = 0; Index < RenderBackend.SwapChainImages.size(); ++Index)
     {
-        RenderBackend.SwapChainImageViews[Index] = CreateImageView(RenderBackend.SwapChainImages[Index], RenderBackend.SwapChainImageFormat);
+        RenderBackend.SwapChainImageViews[Index] = CreateImageView(RenderBackend.SwapChainImages[Index], RenderBackend.SwapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Render Pass
+    VkAttachmentDescription DepthAttachment = {};
+    DepthAttachment.format = VK_FORMAT_D32_SFLOAT;
+    DepthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    DepthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    DepthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    DepthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    DepthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    DepthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    DepthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference DepthAttachmentRef = {};
+    DepthAttachmentRef.attachment = 1;
+    DepthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentDescription ColorAttachment = {};
     ColorAttachment.format = RenderBackend.SwapChainImageFormat;
     ColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -659,19 +673,22 @@ void InitializeRenderBackend(game_memory* GameMemory)
     SubPass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     SubPass.colorAttachmentCount = 1;
     SubPass.pColorAttachments = &ColorAttachmentRef;
+    SubPass.pDepthStencilAttachment = &DepthAttachmentRef;
 
     VkSubpassDependency Dependency = {};
     Dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     Dependency.dstSubpass = 0;
-    Dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    Dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     Dependency.srcAccessMask = 0;
-    Dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    Dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    Dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    Dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkAttachmentDescription RenderPassAttachments[2] = {ColorAttachment, DepthAttachment};
 
     VkRenderPassCreateInfo RenderPassInfo = {};
     RenderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    RenderPassInfo.attachmentCount = 1;
-    RenderPassInfo.pAttachments = &ColorAttachment;
+    RenderPassInfo.attachmentCount = ArrayCount(RenderPassAttachments);
+    RenderPassInfo.pAttachments = RenderPassAttachments;
     RenderPassInfo.subpassCount = 1;
     RenderPassInfo.pSubpasses = &SubPass;
     RenderPassInfo.dependencyCount = 1;
@@ -819,6 +836,18 @@ void InitializeRenderBackend(game_memory* GameMemory)
         printf("Failed to create pipeline layout!\n");
     }
 
+    VkPipelineDepthStencilStateCreateInfo DepthStencilState = {};
+    DepthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    DepthStencilState.depthTestEnable = VK_TRUE;
+    DepthStencilState.depthWriteEnable = VK_TRUE;
+    DepthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
+    DepthStencilState.depthBoundsTestEnable = VK_FALSE;
+    DepthStencilState.minDepthBounds = 0.0f; // Optional
+    DepthStencilState.maxDepthBounds = 1.0f; // Optional
+    DepthStencilState.stencilTestEnable = VK_FALSE;
+    //DepthStencilStateCreateInfo.front = {}; // Optional
+    //DepthStencilStateCreateInfo.back = {}; // Optional
+
     VkGraphicsPipelineCreateInfo PipelineInfo = {};
     PipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     PipelineInfo.stageCount = 2;
@@ -828,7 +857,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     PipelineInfo.pViewportState = &ViewportState;
     PipelineInfo.pRasterizationState = &Rasterizer;
     PipelineInfo.pMultisampleState = &MultiSampling;
-    PipelineInfo.pDepthStencilState = nullptr; // Optional
+    PipelineInfo.pDepthStencilState = &DepthStencilState;
     PipelineInfo.pColorBlendState = &ColorBlending;
     PipelineInfo.pDynamicState = &DynamicState;
     PipelineInfo.layout = RenderBackend.PipelineLayout;
@@ -846,32 +875,6 @@ void InitializeRenderBackend(game_memory* GameMemory)
     vkDestroyShaderModule(RenderBackend.Device, VertexShaderModule, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
-    //NOTE(Lyubomir): Create Frame Buffers
-    RenderBackend.SwapChainFramebuffers.resize(RenderBackend.SwapChainImageViews.size());
-
-    for (int Index = 0; Index < RenderBackend.SwapChainImageViews.size(); ++Index)
-    {
-        VkImageView Attachments[] =
-        {
-            RenderBackend.SwapChainImageViews[Index]
-        };
-
-        VkFramebufferCreateInfo FramebufferInfo = {};
-        FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        FramebufferInfo.renderPass = RenderBackend.RenderPass;
-        FramebufferInfo.attachmentCount = 1;
-        FramebufferInfo.pAttachments = Attachments;
-        FramebufferInfo.width = RenderBackend.SwapChainExtent.width;
-        FramebufferInfo.height = RenderBackend.SwapChainExtent.height;
-        FramebufferInfo.layers = 1;
-
-        if (vkCreateFramebuffer(RenderBackend.Device, &FramebufferInfo, nullptr, &RenderBackend.SwapChainFramebuffers[Index]) != VK_SUCCESS)
-        {
-            printf("failed to create framebuffer!\n");
-        }
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Pool
     VkCommandPoolCreateInfo PoolInfo = {};
     PoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -884,35 +887,68 @@ void InitializeRenderBackend(game_memory* GameMemory)
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Depth Resources
+
+    //TODO(Lyubomir): Choose the best format on the device
+    VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
+
+    CreateImage(RenderBackend.SwapChainExtent.width, RenderBackend.SwapChainExtent.height, DepthFormat,
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, RenderBackend.DepthImage, RenderBackend.DepthImageMemory);
+
+    RenderBackend.DepthImageView = CreateImageView(RenderBackend.DepthImage, DepthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create Frame Buffers
+    RenderBackend.SwapChainFramebuffers.resize(RenderBackend.SwapChainImageViews.size());
+
+    for (int Index = 0; Index < RenderBackend.SwapChainImageViews.size(); ++Index)
+    {
+        VkImageView Attachments[] =
+        {
+            RenderBackend.SwapChainImageViews[Index],
+            RenderBackend.DepthImageView
+        };
+
+        VkFramebufferCreateInfo FramebufferInfo = {};
+        FramebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        FramebufferInfo.renderPass = RenderBackend.RenderPass;
+        FramebufferInfo.attachmentCount = ArrayCount(Attachments);
+        FramebufferInfo.pAttachments = Attachments;
+        FramebufferInfo.width = RenderBackend.SwapChainExtent.width;
+        FramebufferInfo.height = RenderBackend.SwapChainExtent.height;
+        FramebufferInfo.layers = 1;
+
+        if (vkCreateFramebuffer(RenderBackend.Device, &FramebufferInfo, nullptr, &RenderBackend.SwapChainFramebuffers[Index]) != VK_SUCCESS)
+        {
+            printf("failed to create framebuffer!\n");
+        }
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Texture Image
-    int32 TextureWidth;
-    int32 TextureHeight;
-    int32 TextureChannels;
-    stbi_uc* Pixels = stbi_load("../resources/textures/statue_test.jpg", &TextureWidth, &TextureHeight, &TextureChannels, STBI_rgb_alpha);
-    VkDeviceSize ImageSize = TextureWidth * TextureHeight * 4;
+    texture TestTexture;
+    stbi_uc* Pixels = stbi_load("../resources/textures/statue_test.jpg", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
+    VkDeviceSize ImageSize = TestTexture.TextureWidth * TestTexture.TextureHeight * 4;
 
     if (!Pixels)
     {
         printf("Failed to load texture image!\n");
     }
 
-    VkBuffer StagingTextureBuffer;
-    VkDeviceMemory StagingTextureBufferMemory;
-
     CreateBuffer(ImageSize,
                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                  VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 StagingTextureBuffer, StagingTextureBufferMemory);
+                 TestTexture.StagingTextureBuffer, TestTexture.StagingTextureBufferMemory);
 
-    void* TextureData;
-    vkMapMemory(RenderBackend.Device, StagingTextureBufferMemory, 0, ImageSize, 0, &TextureData);
-    memcpy(TextureData, Pixels, static_cast<size_t>(ImageSize));
-    vkUnmapMemory(RenderBackend.Device, StagingTextureBufferMemory);
+    vkMapMemory(RenderBackend.Device, TestTexture.StagingTextureBufferMemory, 0, ImageSize, 0, &TestTexture.TextureData);
+    memcpy(TestTexture.TextureData, Pixels, static_cast<size_t>(ImageSize));
+    vkUnmapMemory(RenderBackend.Device, TestTexture.StagingTextureBufferMemory);
 
     stbi_image_free(Pixels);
 
-    CreateImage(TextureWidth, TextureHeight,
+    CreateImage(TestTexture.TextureWidth, TestTexture.TextureHeight,
                 VK_FORMAT_R8G8B8A8_SRGB,
                 VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -920,15 +956,15 @@ void InitializeRenderBackend(game_memory* GameMemory)
                 RenderBackend.TextureImage, RenderBackend.TextureImageMemory);
 
     TransitionImageLayout(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    CopyBufferToImage(StagingTextureBuffer, RenderBackend.TextureImage, static_cast<uint32>(TextureWidth), static_cast<uint32>(TextureHeight));
+    CopyBufferToImage(TestTexture.StagingTextureBuffer, RenderBackend.TextureImage, static_cast<uint32>(TestTexture.TextureWidth), static_cast<uint32>(TestTexture.TextureHeight));
     TransitionImageLayout(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    vkDestroyBuffer(RenderBackend.Device, StagingTextureBuffer, nullptr);
-    vkFreeMemory(RenderBackend.Device, StagingTextureBufferMemory, nullptr);
+    vkDestroyBuffer(RenderBackend.Device, TestTexture.StagingTextureBuffer, nullptr);
+    vkFreeMemory(RenderBackend.Device, TestTexture.StagingTextureBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Texture Image View
-    RenderBackend.TextureImageView = CreateImageView(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+    RenderBackend.TextureImageView = CreateImageView(RenderBackend.TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Texture Sampler
@@ -1034,7 +1070,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     DescriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     DescriptorPoolInfo.poolSizeCount = ArrayCount(DescriptorPoolSize);
     DescriptorPoolInfo.pPoolSizes = DescriptorPoolSize;
-    //TODO(Lyubomir): MAX_FRAMES_IN_FLIGHT * number of models????
+    //TODO(Lyubomir): Dynamic Binding for uniform buffers so we can reuse 1 descriptor set layout for many uniform buffers?
     DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
 
     if (vkCreateDescriptorPool(RenderBackend.Device, &DescriptorPoolInfo, nullptr, &RenderBackend.DescriptorPool) != VK_SUCCESS)
@@ -1129,6 +1165,14 @@ void Render()
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Record Command Buffer
+
+    VkClearColorValue ClearColorValue = {0.0f, 0.0f, 0.0f, 1.0f};
+    VkClearDepthStencilValue ClearDepthStencilValue = {1.0f, 0};
+
+    VkClearValue ClearValues[2] = {};
+    ClearValues[0].color = ClearColorValue;
+    ClearValues[1].depthStencil = ClearDepthStencilValue;
+
     VkCommandBufferBeginInfo BeginInfo = {};
     BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     BeginInfo.flags = 0; // Optional
@@ -1146,9 +1190,8 @@ void Render()
     RenderPassInfo.renderArea.offset.x = 0;
     RenderPassInfo.renderArea.offset.x = 0;
     RenderPassInfo.renderArea.extent = RenderBackend.SwapChainExtent;
-    VkClearValue ClearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-    RenderPassInfo.clearValueCount = 1;
-    RenderPassInfo.pClearValues = &ClearColor;
+    RenderPassInfo.clearValueCount = ArrayCount(ClearValues);
+    RenderPassInfo.pClearValues = ClearValues;
 
     vkCmdBeginRenderPass(RenderBackend.CommandBuffers[CurrentFrame], &RenderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, RenderBackend.GraphicsPipeline);
@@ -1257,6 +1300,12 @@ void ShutdownRenderBackend()
     vkDestroyPipelineLayout(RenderBackend.Device, RenderBackend.PipelineLayout, nullptr);
 
     vkDestroyRenderPass(RenderBackend.Device, RenderBackend.RenderPass, nullptr);
+
+    vkDestroyImageView(RenderBackend.Device, RenderBackend.DepthImageView, nullptr);
+
+    vkDestroyImage(RenderBackend.Device, RenderBackend.DepthImage, nullptr);
+
+    vkFreeMemory(RenderBackend.Device, RenderBackend.DepthImageMemory, nullptr);
 
     for (uint32 Index; Index < RenderBackend.SwapChainImageViews.size(); ++Index)
     {
