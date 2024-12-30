@@ -1,4 +1,3 @@
-
 #include "render_backend.cpp"
 #include "../game/game.h"
 #include "render_backend.h"

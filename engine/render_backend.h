@@ -48,8 +48,8 @@ struct uniform_buffer
     glm::mat4 ProjectionMatrix;
 };
 
-const uint32 NumVertices = 8;
-const uint32 NumIndices = 36;
+uint32 NumVertices = 8;
+uint32 NumIndices = 36;
 
 struct render_backend
 {

@@ -2,8 +2,10 @@
 #include "renderer.cpp"
 #include "vulkan/vulkan_core.h"
 
+#define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#include "../libs/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../libs/tiny_gltf.h"
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT MessageType,
@@ -133,7 +135,7 @@ void CreateImage(uint32 TextureWidth, uint32 TextureHeight, VkFormat Format,
     ImageInfo.format = Format;
     ImageInfo.tiling = Tiling;
     ImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    ImageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    ImageInfo.usage = Usage;
     ImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     ImageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     ImageInfo.flags = 0; // Optional
@@ -329,41 +331,169 @@ void InitializeRenderBackend(game_memory* GameMemory)
     InitializeArena(&RenderBackend.GraphicsArena, GameMemory->PermanentStorageSize - sizeof(game_memory),
                     (uint8 *)GameMemory->PermanentStorage + sizeof(game_memory));
 
-    vertex Vertices[NumVertices]  = {};
-    Vertices[0].VertexPosition    =    glm::vec3(-0.5f, -0.5f, -0.5f);
-    Vertices[0].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[0].TextureCoordinate =    glm::vec2(1.0, 0.0);
-    Vertices[1].VertexPosition    =    glm::vec3(-0.5f,  0.5f, -0.5f);
-    Vertices[1].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[1].TextureCoordinate =    glm::vec2(0.0, 0.0);
-    Vertices[2].VertexPosition    =    glm::vec3(0.5f, 0.5f, -0.5f);
-    Vertices[2].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[2].TextureCoordinate =    glm::vec2(0.0, 1.0);
-    Vertices[3].VertexPosition    =    glm::vec3(0.5f, -0.5f, -0.5f);
-    Vertices[3].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[3].TextureCoordinate =    glm::vec2(1.0, 1.0);
-    Vertices[4].VertexPosition    =    glm::vec3(-0.5f, -0.5f,  0.5f);
-    Vertices[4].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[4].TextureCoordinate =    glm::vec2(1.0, 0.0);
-    Vertices[5].VertexPosition    =    glm::vec3(-0.5f, 0.5f, 0.5f);
-    Vertices[5].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[5].TextureCoordinate =    glm::vec2(0.0, 0.0);
-    Vertices[6].VertexPosition    =    glm::vec3(0.5f, 0.5f, 0.5f);
-    Vertices[6].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[6].TextureCoordinate =    glm::vec2(0.0, 1.0);
-    Vertices[7].VertexPosition    =    glm::vec3(0.5f, -0.5f, 0.5f);
-    Vertices[7].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    Vertices[7].TextureCoordinate =    glm::vec2(1.0, 1.0);
 
-    uint32 Indices[NumIndices] =
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Load  GLTF Model
+    tinygltf::Model SuzanneModel;
+
+    tinygltf::TinyGLTF Loader;
+    std::string Error;
+    std::string Warning;
+
+    bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/suzanne/Suzanne.gltf");
+
+    if (!Warning.empty())
     {
-        0, 1, 2, 0, 2, 3,
-        4, 6, 5, 4, 7, 6,
-        4, 5, 1, 4, 1, 0,
-        3, 2, 6, 3, 6, 7,
-        1, 5, 6, 1, 6, 2,
-        4, 0, 3, 4, 3, 7
-    };
+      printf("Warning %s\n", Warning.c_str());
+    }
+
+    if (!Error.empty())
+    {
+      printf("Error: %s\n", Error.c_str());
+    }
+
+    if (!Result)
+    {
+      printf("Failed to parse glTF\n");
+    }
+
+    size_t TotalVertexCount = 0;
+    size_t TotalIndexCount = 0;
+
+    //NOTE(Lyubomir): Calculate Vertex Count
+    for (const tinygltf::Mesh& Mesh : SuzanneModel.meshes)
+    {
+        for (const tinygltf::Primitive& Primitive : Mesh.primitives)
+        {
+            std::map<std::string, int>::const_iterator PositionIterator = Primitive.attributes.find("POSITION");
+            if (PositionIterator != Primitive.attributes.end())
+            {
+                const tinygltf::Accessor& PosAccessor = SuzanneModel.accessors[PositionIterator->second];
+                TotalVertexCount += PosAccessor.count;
+            }
+
+            const tinygltf::Accessor& IndexAccessor = SuzanneModel.accessors[Primitive.indices];
+            TotalIndexCount += IndexAccessor.count;
+        }
+    }
+
+    vertex Vertices[TotalVertexCount];
+    uint32 Indices[TotalIndexCount];
+
+    size_t VertexOffset = 0;
+    size_t IndexOffset = 0;
+
+    //NOTE(Lyubomir): Fill data into arrays
+    for (const tinygltf::Mesh& Mesh : SuzanneModel.meshes)
+    {
+        for (const tinygltf::Primitive& Primitive : Mesh.primitives)
+        {
+            //NOTE(Lyubimir): Access position
+            std::map<std::string, int>::const_iterator PositionIterator = Primitive.attributes.find("POSITION");
+            if (PositionIterator == Primitive.attributes.end())
+            {
+                printf("POSITION attribute not found\n");
+                continue;
+            }
+            const tinygltf::Accessor& PositionAccessor = SuzanneModel.accessors[PositionIterator->second];
+            const tinygltf::BufferView& PositionBufferView = SuzanneModel.bufferViews[PositionAccessor.bufferView];
+            const tinygltf::Buffer& PositionBuffer = SuzanneModel.buffers[PositionBufferView.buffer];
+            const float* PositionData = reinterpret_cast<const float*>(&PositionBuffer.data[PositionBufferView.byteOffset + PositionAccessor.byteOffset]);
+
+            //NOTE(Lyubimir): Access texture coordinate
+            std::map<std::string, int>::const_iterator TextureCoordinateIterator = Primitive.attributes.find("TEXCOORD_0");
+            const float* TextureCoordinateData = nullptr;
+            if (TextureCoordinateIterator != Primitive.attributes.end())
+            {
+                const tinygltf::Accessor& TextureCoordinateAccessor = SuzanneModel.accessors[TextureCoordinateIterator->second];
+                const tinygltf::BufferView& TextureCoordinateBufferView = SuzanneModel.bufferViews[TextureCoordinateAccessor.bufferView];
+                const tinygltf::Buffer& TextureCoordinateBuffer = SuzanneModel.buffers[TextureCoordinateBufferView.buffer];
+                TextureCoordinateData = reinterpret_cast<const float*>(&TextureCoordinateBuffer.data[TextureCoordinateBufferView.byteOffset + TextureCoordinateAccessor.byteOffset]);
+            }
+
+            //NOTE(Lyubimir): Fill vertices
+            for (size_t Index = 0; Index < PositionAccessor.count; ++Index)
+            {
+                Vertices[VertexOffset + Index].VertexPosition = glm::vec3(PositionData[Index * 3], PositionData[Index * 3 + 1], PositionData[Index * 3 + 2]);
+                Vertices[VertexOffset + Index].VertexColor = glm::vec3(1.0, 0, 0);
+                if (TextureCoordinateData)
+                {
+                    Vertices[VertexOffset + Index].TextureCoordinate = glm::vec2(TextureCoordinateData[Index * 2], TextureCoordinateData[Index * 2 + 1]);
+                }
+            }
+
+            //NOTE(Lyubimir): Access and fill indices
+            const tinygltf::Accessor& IndexAccessor = SuzanneModel.accessors[Primitive.indices];
+            const tinygltf::BufferView& IndexBufferView = SuzanneModel.bufferViews[IndexAccessor.bufferView];
+            const tinygltf::Buffer& IndexBuffer = SuzanneModel.buffers[IndexBufferView.buffer];
+
+            if (IndexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+            {
+                const uint32* IndexData = reinterpret_cast<const uint32*>(&IndexBuffer.data[IndexBufferView.byteOffset + IndexAccessor.byteOffset]);
+                for (uint32 Index = 0; Index < IndexAccessor.count; ++Index)
+                {
+                    Indices[IndexOffset + Index] = IndexData[Index] + VertexOffset;
+                }
+            }
+            else if (IndexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+            {
+                const uint16* IndexData = reinterpret_cast<const uint16*>(&IndexBuffer.data[IndexBufferView.byteOffset + IndexAccessor.byteOffset]);
+                for (uint32 Index = 0; Index < IndexAccessor.count; ++Index)
+                {
+                    Indices[IndexOffset + Index] = static_cast<uint32>(IndexData[Index]) + VertexOffset;
+                }
+            }
+            else
+            {
+                printf("Unsupported index component type: %d\n", IndexAccessor.componentType);
+                continue;
+            }
+
+            VertexOffset += PositionAccessor.count;
+            IndexOffset += IndexAccessor.count;
+        }
+    }
+
+    NumVertices = TotalVertexCount;
+    NumIndices = TotalIndexCount;
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Load Cube Vertices
+
+    //Vertices[0].VertexPosition    =    glm::vec3(-0.5f, -0.5f, -0.5f);
+    //Vertices[0].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[0].TextureCoordinate =    glm::vec2(1.0, 0.0);
+    //Vertices[1].VertexPosition    =    glm::vec3(-0.5f,  0.5f, -0.5f);
+    //Vertices[1].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[1].TextureCoordinate =    glm::vec2(0.0, 0.0);
+    //Vertices[2].VertexPosition    =    glm::vec3(0.5f, 0.5f, -0.5f);
+    //Vertices[2].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[2].TextureCoordinate =    glm::vec2(0.0, 1.0);
+    //Vertices[3].VertexPosition    =    glm::vec3(0.5f, -0.5f, -0.5f);
+    //Vertices[3].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[3].TextureCoordinate =    glm::vec2(1.0, 1.0);
+    //Vertices[4].VertexPosition    =    glm::vec3(-0.5f, -0.5f,  0.5f);
+    //Vertices[4].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[4].TextureCoordinate =    glm::vec2(1.0, 0.0);
+    //Vertices[5].VertexPosition    =    glm::vec3(-0.5f, 0.5f, 0.5f);
+    //Vertices[5].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[5].TextureCoordinate =    glm::vec2(0.0, 0.0);
+    //Vertices[6].VertexPosition    =    glm::vec3(0.5f, 0.5f, 0.5f);
+    //Vertices[6].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[6].TextureCoordinate =    glm::vec2(0.0, 1.0);
+    //Vertices[7].VertexPosition    =    glm::vec3(0.5f, -0.5f, 0.5f);
+    //Vertices[7].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
+    //Vertices[7].TextureCoordinate =    glm::vec2(1.0, 1.0);
+
+    //uint32 Indices[NumIndices] =
+    //{
+    //    0, 1, 2, 0, 2, 3,
+    //    4, 6, 5, 4, 7, 6,
+    //    4, 5, 1, 4, 1, 0,
+    //    3, 2, 6, 3, 6, 7,
+    //    1, 5, 6, 1, 6, 2,
+    //    4, 0, 3, 4, 3, 7
+    //};
 
     VkVertexInputBindingDescription BindingDescription = {};
     BindingDescription.binding = 0;
@@ -928,7 +1058,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Texture Image
     texture TestTexture;
-    stbi_uc* Pixels = stbi_load("../resources/textures/statue_test.jpg", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
+    stbi_uc* Pixels = stbi_load("../resources/models/suzanne/Suzanne_BaseColor.png", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
     VkDeviceSize ImageSize = TestTexture.TextureWidth * TestTexture.TextureHeight * 4;
 
     if (!Pixels)
@@ -1054,9 +1184,9 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Uniform Buffers
-    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 5.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(5.0f, 0.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
-    RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(0.0f, 5.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Pool
@@ -1136,7 +1266,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
 void Render()
 {
     camera Camera = {};
-    Camera.Position = glm::vec3(2.0f, 2.0f, 10.0f);
+    Camera.Position = glm::vec3(0.0f, -12.0f, 0.0f);
     Camera.Target = glm::vec3(0.0f, 0.0f, 0.0f);
     Camera.Up = glm::vec3(0.0f, 0.0f, 1.0f);
     Camera.AspectRatio = 45.0f;
