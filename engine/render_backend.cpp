@@ -1,5 +1,6 @@
 #include "render_backend.h"
 #include "renderer.cpp"
+#include "renderer.h"
 #include "vulkan/vulkan_core.h"
 
 #define TINYGLTF_IMPLEMENTATION
@@ -1126,6 +1127,11 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vertex Buffer
+    for(uint32 Index; Index < MAX_MODEL_TYPE; ++Index)
+    {
+        RenderBackend.BufferGroups[Index] = PushStruct(&RenderBackend.GraphicsArena, buffer_group);
+    }
+
     VkDeviceSize VertexBufferSize = sizeof(Vertices[0]) * NumVertices;
 
     VkBuffer StagingVertexBuffer;
@@ -1184,9 +1190,9 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Uniform Buffers
-    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(5.0f, 0.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(5.0f, 0.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
-    RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, CUBE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Pool

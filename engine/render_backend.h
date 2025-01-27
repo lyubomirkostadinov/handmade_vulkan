@@ -60,10 +60,12 @@ struct render_backend
     VkSurfaceKHR Surface;
     VkQueue GraphicsQueue;
     VkQueue PresentQueue;
+
     VkBuffer VertexBuffer;
     VkDeviceMemory VertexBufferMemory;
     VkBuffer IndexBuffer;
     VkDeviceMemory IndexBufferMemory;
+
     VkRenderPass RenderPass;
     VkDebugUtilsMessengerEXT DebugMessenger;
     std::vector<VkImageView> SwapChainImageViews;
@@ -77,8 +79,10 @@ struct render_backend
     std::vector<VkFence> InFlightFences;
     std::vector<VkCommandBuffer> CommandBuffers;
     std::vector<VkFramebuffer> SwapChainFramebuffers;
+
     VkPipeline GraphicsPipeline;
     VkPipelineLayout PipelineLayout;
+
     VkDescriptorPool DescriptorPool;
     VkDescriptorSetLayout DescriptorSetLayout;
 
@@ -90,6 +94,8 @@ struct render_backend
     VkImage DepthImage;
     VkDeviceMemory DepthImageMemory;
     VkImageView DepthImageView;
+
+    buffer_group* BufferGroups[MAX_MODEL_TYPE];
 
     memory_arena GraphicsArena;
     model* CubeModel;

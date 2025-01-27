@@ -4,8 +4,7 @@
 
 buffer_group* GetModelBufferGroup(model_type ModelType)
 {
-    //TODO(Lyubomir): Do we want to store these in the Arena?
-    buffer_group* Result = PushStruct(&RenderBackend.GraphicsArena, buffer_group);
+    buffer_group* Result = RenderBackend.BufferGroups[ModelType];
 
     switch(ModelType)
     {
@@ -13,6 +12,9 @@ buffer_group* GetModelBufferGroup(model_type ModelType)
 
             break;
         case CUBE:
+
+            break;
+        case SUSANNE:
             Result->VertexBuffer = &RenderBackend.VertexBuffer;
             Result->IndexBuffer = &RenderBackend.IndexBuffer;
             break;
@@ -20,7 +22,7 @@ buffer_group* GetModelBufferGroup(model_type ModelType)
 
             break;
     }
-
+    Assert(Result->VertexBuffer != nullptr);
     return Result;
 }
 

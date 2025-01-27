@@ -26,7 +26,9 @@ enum model_type
 {
     TRIANGLE,
     CUBE,
+    SUSANNE,
     //TODO: Model Types
+    MAX_MODEL_TYPE
 };
 
 struct model
