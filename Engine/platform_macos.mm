@@ -5,6 +5,7 @@
 #import <mach-o/dyld.h>
 #import <stdlib.h>
 #import <string.h>
+#import <iostream>
 
 #import "platform.h"
 
@@ -204,6 +205,60 @@ void Shutdown(void)
     InternalState.AppDelegate = 0;
 }
 
+bool WasdKeyPressed[NSEventTypeKeyUp - NSEventTypeKeyDown + 1];
+
+void HandleKeyDown(NSEvent* Event)
+{
+    const char* Characters = [[Event charactersIgnoringModifiers] UTF8String];
+
+    if (strcmp(Characters, "w") == 0)
+    {
+        WasdKeyPressed[0] = true;
+        std::cout << "W pressed" << std::endl;
+    }
+    else if (strcmp(Characters, "a") == 0)
+    {
+        WasdKeyPressed[1] = true;
+        std::cout << "A pressed" << std::endl;
+    }
+    else if (strcmp(Characters, "s") == 0)
+    {
+        WasdKeyPressed[2] = true;
+        std::cout << "S pressed" << std::endl;
+    }
+    else if (strcmp(Characters, "d") == 0)
+    {
+        WasdKeyPressed[3] = true;
+        std::cout << "D pressed" << std::endl;
+    }
+}
+
+void HandleKeyUp(NSEvent* Event)
+{
+    const char* Characters = [[Event charactersIgnoringModifiers] UTF8String];
+
+    if (strcmp(Characters, "w") == 0)
+    {
+        WasdKeyPressed[0] = false;
+        std::cout << "W released" << std::endl;
+    }
+    else if (strcmp(Characters, "a") == 0)
+    {
+        WasdKeyPressed[1] = false;
+        std::cout << "A released" << std::endl;
+    }
+    else if (strcmp(Characters, "s") == 0)
+    {
+        WasdKeyPressed[2] = false;
+        std::cout << "S released" << std::endl;
+    }
+    else if (strcmp(Characters, "d") == 0)
+    {
+        WasdKeyPressed[3] = false;
+        std::cout << "D released" << std::endl;
+    }
+}
+
 bool32 PollEvents(void)
 {
     @autoreleasepool
@@ -218,9 +273,21 @@ bool32 PollEvents(void)
                     inMode:NSDefaultRunLoopMode
                     dequeue:YES];
 
-            if(!event)
+            if (!event)
             {
                 break;
+            }
+
+            switch ([event type])
+            {
+                case NSEventTypeKeyDown:
+                    HandleKeyDown(event);
+                    break;
+                case NSEventTypeKeyUp:
+                    HandleKeyUp(event);
+                    break;
+                default:
+                    break;
             }
 
             [NSApp sendEvent:event];

@@ -342,6 +342,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     std::string Warning;
 
     bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/suzanne/Suzanne.gltf");
+    //bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/sponza/Sponza.gltf");
 
     if (!Warning.empty())
     {
@@ -1060,6 +1061,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     //NOTE(Lyubomir): Create Texture Image
     texture TestTexture;
     stbi_uc* Pixels = stbi_load("../resources/models/suzanne/Suzanne_BaseColor.png", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
+    //stbi_uc* Pixels = stbi_load("../resources/models/sponza/white.png", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
     VkDeviceSize ImageSize = TestTexture.TextureWidth * TestTexture.TextureHeight * 4;
 
     if (!Pixels)
@@ -1269,7 +1271,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     }
 }
 
-void Render()
+void Render(game_memory* GameMemory)
 {
     camera Camera = {};
     Camera.Position = glm::vec3(0.0f, -12.0f, 0.0f);
@@ -1302,7 +1304,10 @@ void Render()
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Record Command Buffer
 
-    VkClearColorValue ClearColorValue = {0.0f, 0.0f, 0.0f, 1.0f};
+    float r = GameMemory->r;
+    float g = GameMemory->g;
+    float b = GameMemory->b;
+    VkClearColorValue ClearColorValue = {r, g, b, 1.0f};
     VkClearDepthStencilValue ClearDepthStencilValue = {1.0f, 0};
 
     VkClearValue ClearValues[2] = {};

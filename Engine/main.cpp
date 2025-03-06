@@ -2,36 +2,22 @@
 #include "../game/game.h"
 #include "render_backend.h"
 #include <sys/mman.h>
+#include <dlfcn.h>
+#include <unistd.h>
+#include <cstdio>
 
 game_memory TestGameMemory;
 
 //TODO(Lyubomir): Math Library and API Types
 
-void LoadGameCode()
+void SleepSeconds(int seconds)
 {
-        typedef void (*TestFunction)(game_memory&);
-
-        TestFunction TestFunctionPtr = NULL;
-
-        TestFunctionPtr = (TestFunction)MyNSGLGetProcAddress("TestAddressFunction");
-
-        printf("Address of TestFunction: %p\n", (void*)TestFunctionPtr);
-
-        if (!TestFunctionPtr)
-        {
-            printf("Failed to load function\n");
-        }
-
-        if (TestFunctionPtr)
-        {
-            //NOTE(Lyubomir): Call the function
-            (*TestFunctionPtr)(TestGameMemory);
-        }
+    sleep(seconds);
 }
 
 int main(int argc, char *argv[])
 {
-    LoadGameCode();
+    //LoadGameCode();
 
     //TODO(Lyubomir): Its Time To Learn LLDB ;D
 
@@ -58,6 +44,10 @@ int main(int argc, char *argv[])
     // terminating / kill process -> kill
     // exit lldb -> quit / Ctrl + D
     game_memory GameMemory;
+    GameMemory.r = 0.0f;
+    GameMemory.g = 0.0f;
+    GameMemory.b = 0.0f;
+
     GameMemory.PermanentStorageSize = Gigabytes(1);
     GameMemory.PermanentStorage = mmap(NULL, GameMemory.PermanentStorageSize,
                                        PROT_READ | PROT_WRITE,
@@ -70,12 +60,53 @@ int main(int argc, char *argv[])
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Render Loop
+
+    const char* LibraryPath = "./libgame.dylib";
+    const char* FunctionName = "TestAddressFunction";
+
+    void* LibHandle = nullptr;
+    typedef void (*TestFunction)(game_memory&);
+    TestFunction TestFunctionPtr = nullptr;
+
     while (!ShouldClose())
     {
+        if (LibHandle)
+        {
+            dlclose(LibHandle);
+        }
+
+        LibHandle = dlopen(LibraryPath, RTLD_NOW);
+        if (!LibHandle)
+        {
+            fprintf(stderr, "Failed to load library: %s\n", dlerror());
+            break;
+        }
+
+        // Get the address of the function
+        TestFunctionPtr = (TestFunction)dlsym(LibHandle, FunctionName);
+        if (!TestFunctionPtr)
+        {
+            fprintf(stderr, "Failed to load function: %s\n", dlerror());
+            break;
+        }
+
+        //printf("Address of TestFunction: %p\n", (void*)TestFunctionPtr);
+
+        if (TestFunctionPtr)
+        {
+            (*TestFunctionPtr)(GameMemory);
+        }
+
         PollEvents();
 
-        Render();
+        Render(&GameMemory);
     }
+    if (LibHandle)
+    {
+        dlclose(LibHandle);
+    }
+
+
     ShutdownRenderBackend();
 
     Shutdown();

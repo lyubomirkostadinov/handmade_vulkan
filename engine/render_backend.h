@@ -138,6 +138,6 @@ void CreateDescriptorSets(render_backend* RenderBackend,
 
 void InitializeRenderBackend(game_memory* GameMemory);
 
-void Render();
+void Render(game_memory* GameMemory);
 
 void ShutdownRenderBackend();
