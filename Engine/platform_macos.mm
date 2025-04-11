@@ -205,11 +205,33 @@ void Shutdown(void)
     InternalState.AppDelegate = 0;
 }
 
-bool WasdKeyPressed[NSEventTypeKeyUp - NSEventTypeKeyDown + 1];
+CGFloat deltaX, deltaY;
+NSPoint lastMouseLocation;
+void HandleMouseMove(NSEvent *event)
+{
+    NSPoint currentLocation = [event locationInWindow];
+    deltaX = currentLocation.x - lastMouseLocation.x;
+    deltaY = lastMouseLocation.y - currentLocation.y;
 
+    lastMouseLocation = currentLocation;
+}
+
+void ProcessMouseMove(float *X, float *Y)
+{
+    *X = (float)deltaX;
+    *Y = (float)deltaY;
+}
+
+bool WasdKeyPressed[4];
+bool LockCamera = false;
 void HandleKeyDown(NSEvent* Event)
 {
     const char* Characters = [[Event charactersIgnoringModifiers] UTF8String];
+
+    if (strcmp(Characters, "p") == 0)
+    {
+        std::cout << "P pressed" << std::endl;
+    }
 
     if (strcmp(Characters, "w") == 0)
     {
@@ -236,6 +258,27 @@ void HandleKeyDown(NSEvent* Event)
 void HandleKeyUp(NSEvent* Event)
 {
     const char* Characters = [[Event charactersIgnoringModifiers] UTF8String];
+
+    if (strcmp(Characters, "p") == 0)
+    {
+        if(!LockCamera)
+        {
+            printf("LOCK The Camera");
+            CGDisplayHideCursor(NULL);
+            CGAssociateMouseAndMouseCursorPosition(false);
+
+            LockCamera = true;
+        }
+        else
+        {
+            printf("UNLOCK The Camera");
+            CGDisplayShowCursor(NULL);
+            CGAssociateMouseAndMouseCursorPosition(true);
+
+            LockCamera = false;
+        }
+        std::cout << "P released" << std::endl;
+    }
 
     if (strcmp(Characters, "w") == 0)
     {
@@ -285,6 +328,9 @@ bool32 PollEvents(void)
                     break;
                 case NSEventTypeKeyUp:
                     HandleKeyUp(event);
+                    break;
+                case NSEventTypeMouseMoved:
+                    HandleMouseMove(event);
                     break;
                 default:
                     break;
@@ -338,7 +384,6 @@ bool32 CreateWindow(int16 Width, int16 Height, const char* Name, WINDOW_STYLE_FL
 
 CAMetalLayer* GetInternalStateMetalLayer()
 {
-    //TODO(Lyubomir): Casey won't be proud!
     return InternalState.Windows[0]->State->MetalLayer;
 }
 
@@ -357,17 +402,33 @@ void HideWindow(window* Window)
 
 }
 
-void ProcessKey(void)
+int32 ProcessKey(int32 Key)
 {
 
+    int32 Result = -1;
+
+    if(Key == KeyW && WasdKeyPressed[0] == true)
+    {
+        printf("SIGNAL MOVE WWWWWWW\n");
+        Result = KeyW;
+    }
+    if(Key == KeyA && WasdKeyPressed[1] == true)
+    {
+        Result = KeyA;
+    }
+    if(Key == KeyS && WasdKeyPressed[2] == true)
+    {
+        Result = KeyS;
+    }
+    if(Key == KeyD && WasdKeyPressed[3] == true)
+    {
+        Result = KeyD;
+    }
+
+    return Result;
 }
 
 void ProcessButton(void)
-{
-
-}
-
-void ProcessMouseMove(void)
 {
 
 }

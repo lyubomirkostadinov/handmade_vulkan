@@ -1,4 +1,6 @@
 #include "render_backend.h"
+#include "memory_arena.h"
+#include "platform.h"
 #include "renderer.cpp"
 #include "renderer.h"
 #include "vulkan/vulkan_core.h"
@@ -379,8 +381,8 @@ void InitializeRenderBackend(game_memory* GameMemory)
         }
     }
 
-    vertex Vertices[TotalVertexCount];
-    uint32 Indices[TotalIndexCount];
+    vertex *Vertices = PushArray(&RenderBackend.GraphicsArena, TotalVertexCount ,vertex);
+    uint32 *Indices = PushArray(&RenderBackend.GraphicsArena, TotalIndexCount ,uint32);
 
     size_t VertexOffset = 0;
     size_t IndexOffset = 0;
@@ -1061,7 +1063,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     //NOTE(Lyubomir): Create Texture Image
     texture TestTexture;
     stbi_uc* Pixels = stbi_load("../resources/models/suzanne/Suzanne_BaseColor.png", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
-    //stbi_uc* Pixels = stbi_load("../resources/models/sponza/white.png", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
+    //stbi_uc* Pixels = stbi_load("../resources/models/sponza/5792855332885324923.jpg", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
     VkDeviceSize ImageSize = TestTexture.TextureWidth * TestTexture.TextureHeight * 4;
 
     if (!Pixels)
@@ -1192,7 +1194,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Uniform Buffers
-    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(5.0f, 0.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
     RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
@@ -1269,17 +1271,83 @@ void InitializeRenderBackend(game_memory* GameMemory)
             printf("Failed to create semaphores!\n");
         }
     }
+
+    //////////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Initialize Camera
+    RenderBackend.Camera = PushStruct(&RenderBackend.GraphicsArena, camera);
+    RenderBackend.Camera->Position = glm::vec3(0.0f, 0.0f, 0.0f);
+    RenderBackend.Camera->Front = glm::vec3(0.0f, 0.0f, -1.0f);
+    RenderBackend.Camera->Up = glm::vec3(0.0f, 1.0f, 0.0f);
+    RenderBackend.Camera->Right = glm::normalize(glm::cross(RenderBackend.Camera->Front, RenderBackend.Camera->Up));
+    RenderBackend.Camera->AspectRatio = 45.0f;
+    RenderBackend.Camera->NearPlane = 0.1f;
+    RenderBackend.Camera->FarPlane = 100.0f;
+    RenderBackend.Camera->Yaw = -90.0f;
+    RenderBackend.Camera->Pitch = 0.0f;
+    RenderBackend.Camera->Sensitivity = 0.1f;
+}
+
+void UpdateCameraVectors(camera* Camera)
+{
+    Camera->Front.x = cos(glm::radians(Camera->Yaw)) * cos(glm::radians(Camera->Pitch));
+    Camera->Front.y = sin(glm::radians(Camera->Pitch));
+    Camera->Front.z = sin(glm::radians(Camera->Yaw)) * cos(glm::radians(Camera->Pitch));
+
+    // Normalize the vectors
+    Camera->Front = glm::normalize(Camera->Front);
+    Camera->Right = glm::normalize(cross(Camera->Front, {0.0f, 1.0f, 0.0f}));
+    Camera->Up = glm::cross(Camera->Right, Camera->Front);
+}
+
+void UpdateCamera(camera *Camera)
+{
+    float DeltaX, DeltaY;
+    ProcessMouseMove(&DeltaX, &DeltaY);
+    printf("X Y : %.2f, %.2f \n", DeltaX, DeltaY);
+
+    DeltaX *= Camera->Sensitivity;
+    DeltaY *= Camera->Sensitivity;
+
+    Camera->Yaw += DeltaX;
+    Camera->Pitch += DeltaY;
+
+    if (Camera->Pitch > 89.0f)
+    {
+        Camera->Pitch = 89.0f;
+    }
+    if (Camera->Pitch < -89.0f)
+    {
+        Camera->Pitch = -89.0f;
+    }
+
+    UpdateCameraVectors(Camera);
+
+    int32 WPressed = ProcessKey(KeyW);
+    int32 APressed = ProcessKey(KeyA);
+    int32 SPressed = ProcessKey(KeyS);
+    int32 DPressed = ProcessKey(KeyD);
+
+    if(WPressed > -1)
+    {
+        Camera->Position.z += 17.2f * RenderBackend.DeltaTime;
+    }
+    if(SPressed > -1)
+    {
+        Camera->Position.z -= 17.2f * RenderBackend.DeltaTime;
+    }
+    if(APressed > -1)
+    {
+        Camera->Position.x += 17.2f * RenderBackend.DeltaTime;
+    }
+    if(DPressed > -1)
+    {
+        Camera->Position.x -= 17.2f * RenderBackend.DeltaTime;
+    }
 }
 
 void Render(game_memory* GameMemory)
 {
-    camera Camera = {};
-    Camera.Position = glm::vec3(0.0f, -12.0f, 0.0f);
-    Camera.Target = glm::vec3(0.0f, 0.0f, 0.0f);
-    Camera.Up = glm::vec3(0.0f, 0.0f, 1.0f);
-    Camera.AspectRatio = 45.0f;
-    Camera.NearPlane = 0.1f;
-    Camera.FarPlane = 100.0f;
+    UpdateCamera(RenderBackend.Camera);
 
     vkWaitForFences(RenderBackend.Device, 1, &RenderBackend.InFlightFences[CurrentFrame], VK_TRUE, UINT64_MAX);
 
@@ -1291,8 +1359,8 @@ void Render(game_memory* GameMemory)
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Update Uniform Buffers
 
-    UpdateModel(RenderBackend.CubeModel, &Camera);
-    UpdateModel(RenderBackend.CubeModel2, &Camera);
+    UpdateModel(RenderBackend.CubeModel, RenderBackend.Camera);
+    UpdateModel(RenderBackend.CubeModel2, RenderBackend.Camera);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Reset Fences And Command Buffer

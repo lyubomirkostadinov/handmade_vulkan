@@ -25,12 +25,16 @@ struct model;
 struct camera
 {
     glm::vec3 Position;
-    glm::vec3 Target;
+    glm::vec3 Front;
+     glm::vec3 Right;
     glm::vec3 Up;
     float Fov;
     float AspectRatio;
     float NearPlane;
     float FarPlane;
+    float Yaw;
+    float Pitch;
+    float Sensitivity;
 };
 
 struct vertex
@@ -100,6 +104,9 @@ struct render_backend
     memory_arena GraphicsArena;
     model* CubeModel;
     model* CubeModel2;
+
+    camera* Camera;
+    float DeltaTime;
 } RenderBackend;
 
 uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties);
@@ -139,5 +146,7 @@ void CreateDescriptorSets(render_backend* RenderBackend,
 void InitializeRenderBackend(game_memory* GameMemory);
 
 void Render(game_memory* GameMemory);
+
+void UpdateCamera();
 
 void ShutdownRenderBackend();

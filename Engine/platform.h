@@ -45,9 +45,17 @@ void ShowWindow(window* Window);
 void HideWindow(window* Window);
 
 //TODO(Lyubomir): Platform layer input handling
-void ProcessKey(void);
+enum : int32
+{
+    KeyW,
+    KeyA,
+    KeyS,
+    KeyD,
+};
+
+int32 ProcessKey(int32 Key);
 void ProcessButton(void);
-void ProcessMouseMove(void);
+void ProcessMouseMove(float *X, float *Y);
 void ProcessMouseWheel(void);
 
 

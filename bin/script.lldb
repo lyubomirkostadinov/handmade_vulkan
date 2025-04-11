@@ -1,0 +1,5 @@
+# Set environment variables for the debugger
+
+settings set target.env-vars DYLD_LIBRARY_PATH=/Users/lyubomir.kostadinov/VulkanSDK/1.3.290.0/macOS/lib
+   target create "app"
+   run

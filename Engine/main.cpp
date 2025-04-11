@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cstdio>
+#include <time.h>
 
 game_memory TestGameMemory;
 
@@ -13,6 +14,13 @@ game_memory TestGameMemory;
 void SleepSeconds(int seconds)
 {
     sleep(seconds);
+}
+
+double GetCurrentTime()
+{
+    struct timespec TimeSpec;
+    clock_gettime(CLOCK_MONOTONIC, &TimeSpec);
+    return TimeSpec.tv_sec + TimeSpec.tv_nsec / 1e9;
 }
 
 int main(int argc, char *argv[])
@@ -48,7 +56,7 @@ int main(int argc, char *argv[])
     GameMemory.g = 0.0f;
     GameMemory.b = 0.0f;
 
-    GameMemory.PermanentStorageSize = Gigabytes(1);
+    GameMemory.PermanentStorageSize = Gigabytes(4);
     GameMemory.PermanentStorage = mmap(NULL, GameMemory.PermanentStorageSize,
                                        PROT_READ | PROT_WRITE,
                                        MAP_PRIVATE | MAP_ANONYMOUS,
@@ -68,8 +76,18 @@ int main(int argc, char *argv[])
     typedef void (*TestFunction)(game_memory&);
     TestFunction TestFunctionPtr = nullptr;
 
+    double LastTime = GetCurrentTime();
+    double CurrentTime;
+    double DeltaTime;
+
     while (!ShouldClose())
     {
+        CurrentTime = GetCurrentTime();
+        DeltaTime = CurrentTime - LastTime;
+        LastTime = CurrentTime;
+
+        RenderBackend.DeltaTime = (float)DeltaTime;
+
         if (LibHandle)
         {
             dlclose(LibHandle);
