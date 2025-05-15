@@ -207,23 +207,55 @@ void Shutdown(void)
 
 CGFloat deltaX, deltaY;
 NSPoint lastMouseLocation;
+bool LockCamera = false;
+bool ignoreNextMouseDelta = false;
+
 void HandleMouseMove(NSEvent *event)
 {
-    NSPoint currentLocation = [event locationInWindow];
-    deltaX = currentLocation.x - lastMouseLocation.x;
-    deltaY = lastMouseLocation.y - currentLocation.y;
+    NSWindow *window = [event window];
+        NSView *contentView = [window contentView];
+        NSRect bounds = [contentView bounds];
+        NSPoint centerInContent = NSMakePoint(NSMidX(bounds), NSMidY(bounds));
 
-    lastMouseLocation = currentLocation;
+        // [event locationInWindow] is *in contentView (client) coords*
+        if (LockCamera)
+        {
+            deltaX += [event deltaX];
+            deltaY += [event deltaY];
+
+            // Hide cursor
+            [NSCursor hide];
+            ignoreNextMouseDelta = true;
+        }
+        else
+        {
+            // Normal (editor/free) mode: remember location, but don't use deltas for FPS
+            NSPoint currentLocation = [event locationInWindow];
+            lastMouseLocation = currentLocation;
+            // If you want, you can also accumulate deltas here for 2D dragging.
+        }
 }
+
+
+bool WasdKeyPressed[4];
 
 void ProcessMouseMove(float *X, float *Y)
 {
-    *X = (float)deltaX;
-    *Y = (float)deltaY;
+    if(LockCamera)
+    {
+        *X = (float)deltaX;
+        *Y = (float)deltaY;
+    }
+    else
+    {
+        *X = 0;
+        *Y = 0;
+    }
+
+    deltaX = 0;
+    deltaY = 0;
 }
 
-bool WasdKeyPressed[4];
-bool LockCamera = false;
 void HandleKeyDown(NSEvent* Event)
 {
     const char* Characters = [[Event charactersIgnoringModifiers] UTF8String];
@@ -263,7 +295,6 @@ void HandleKeyUp(NSEvent* Event)
     {
         if(!LockCamera)
         {
-            printf("LOCK The Camera");
             CGDisplayHideCursor(NULL);
             CGAssociateMouseAndMouseCursorPosition(false);
 
@@ -271,7 +302,6 @@ void HandleKeyUp(NSEvent* Event)
         }
         else
         {
-            printf("UNLOCK The Camera");
             CGDisplayShowCursor(NULL);
             CGAssociateMouseAndMouseCursorPosition(true);
 
@@ -364,6 +394,7 @@ bool32 CreateWindow(int16 Width, int16 Height, const char* Name, WINDOW_STYLE_FL
     [Window->State->Window setDelegate:Window->State->WindowDelegate];
     [Window->State->Window setContentView:Window->State->ContentView];
     [Window->State->Window setTitle:@(Name)];
+    [Window->State->Window setAcceptsMouseMovedEvents:YES];
 
     InternalState.Windows[0] = Window;
 
@@ -376,6 +407,7 @@ bool32 CreateWindow(int16 Width, int16 Height, const char* Name, WINDOW_STYLE_FL
     [Window->State->MetalLayer setContentsScale: Window->State->ContentView.window.backingScaleFactor];
     Window->State->PixelRatio = Window->State->MetalLayer.contentsScale;
     [Window->State->ContentView setLayer: Window->State->MetalLayer];
+
 
     NSLog(@"ContentsScale = %f \n", Window->State->PixelRatio);
 
@@ -409,7 +441,6 @@ int32 ProcessKey(int32 Key)
 
     if(Key == KeyW && WasdKeyPressed[0] == true)
     {
-        printf("SIGNAL MOVE WWWWWWW\n");
         Result = KeyW;
     }
     if(Key == KeyA && WasdKeyPressed[1] == true)

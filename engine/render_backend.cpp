@@ -1303,13 +1303,12 @@ void UpdateCamera(camera *Camera)
 {
     float DeltaX, DeltaY;
     ProcessMouseMove(&DeltaX, &DeltaY);
-    printf("X Y : %.2f, %.2f \n", DeltaX, DeltaY);
 
     DeltaX *= Camera->Sensitivity;
     DeltaY *= Camera->Sensitivity;
 
     Camera->Yaw += DeltaX;
-    Camera->Pitch += DeltaY;
+    Camera->Pitch -= DeltaY;
 
     if (Camera->Pitch > 89.0f)
     {
@@ -1329,19 +1328,19 @@ void UpdateCamera(camera *Camera)
 
     if(WPressed > -1)
     {
-        Camera->Position.z += 17.2f * RenderBackend.DeltaTime;
+        Camera->Position += Camera->Front + 0.02f * RenderBackend.DeltaTime;
     }
     if(SPressed > -1)
     {
-        Camera->Position.z -= 17.2f * RenderBackend.DeltaTime;
+        Camera->Position -= Camera->Front + 0.02f * RenderBackend.DeltaTime;
     }
     if(APressed > -1)
     {
-        Camera->Position.x += 17.2f * RenderBackend.DeltaTime;
+        Camera->Position -= Camera->Right + 0.02f * RenderBackend.DeltaTime;
     }
     if(DPressed > -1)
     {
-        Camera->Position.x -= 17.2f * RenderBackend.DeltaTime;
+        Camera->Position += Camera->Right + 0.02f * RenderBackend.DeltaTime;
     }
 }
 
