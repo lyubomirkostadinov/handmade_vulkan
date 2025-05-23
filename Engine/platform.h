@@ -51,6 +51,8 @@ enum : int32
     KeyA,
     KeyS,
     KeyD,
+    KeySpace,
+    KeyShift,
 };
 
 int32 ProcessKey(int32 Key);

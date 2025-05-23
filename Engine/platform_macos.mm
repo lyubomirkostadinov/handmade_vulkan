@@ -217,27 +217,23 @@ void HandleMouseMove(NSEvent *event)
         NSRect bounds = [contentView bounds];
         NSPoint centerInContent = NSMakePoint(NSMidX(bounds), NSMidY(bounds));
 
-        // [event locationInWindow] is *in contentView (client) coords*
         if (LockCamera)
         {
             deltaX += [event deltaX];
             deltaY += [event deltaY];
 
-            // Hide cursor
             [NSCursor hide];
             ignoreNextMouseDelta = true;
         }
         else
         {
-            // Normal (editor/free) mode: remember location, but don't use deltas for FPS
             NSPoint currentLocation = [event locationInWindow];
             lastMouseLocation = currentLocation;
-            // If you want, you can also accumulate deltas here for 2D dragging.
         }
 }
 
 
-bool WasdKeyPressed[4];
+bool WasdKeyPressed[6];
 
 void ProcessMouseMove(float *X, float *Y)
 {
@@ -264,8 +260,7 @@ void HandleKeyDown(NSEvent* Event)
     {
         std::cout << "P pressed" << std::endl;
     }
-
-    if (strcmp(Characters, "w") == 0)
+    else if (strcmp(Characters, "w") == 0)
     {
         WasdKeyPressed[0] = true;
         std::cout << "W pressed" << std::endl;
@@ -284,6 +279,11 @@ void HandleKeyDown(NSEvent* Event)
     {
         WasdKeyPressed[3] = true;
         std::cout << "D pressed" << std::endl;
+    }
+    else if (Characters && Characters[0] == ' ' && Characters[1] == 0)
+    {
+        WasdKeyPressed[4] = true;
+        std::cout << "Space pressed" << std::endl;
     }
 }
 
@@ -330,6 +330,30 @@ void HandleKeyUp(NSEvent* Event)
         WasdKeyPressed[3] = false;
         std::cout << "D released" << std::endl;
     }
+    else if (Characters && Characters[0] == ' ' && Characters[1] == 0)
+    {
+        WasdKeyPressed[4] = false;
+        std::cout << "Space released" << std::endl;
+    }
+}
+
+void HandleFlagsChanged(NSEvent* Event)
+{
+    NSUInteger KeyCode = [Event keyCode];
+    NSEventModifierFlags Flags = [Event modifierFlags];
+    if (KeyCode == 56 || KeyCode == 60)
+    {
+        if (Flags & NSEventModifierFlagShift)
+        {
+            WasdKeyPressed[5] = true;
+            std::cout << "Shift pressed" << std::endl;
+        }
+        else
+        {
+            WasdKeyPressed[5] = false;
+            std::cout << "Shift released" << std::endl;
+        }
+    }
 }
 
 bool32 PollEvents(void)
@@ -361,6 +385,9 @@ bool32 PollEvents(void)
                     break;
                 case NSEventTypeMouseMoved:
                     HandleMouseMove(event);
+                    break;
+                case NSEventTypeFlagsChanged:
+                    HandleFlagsChanged(event);
                     break;
                 default:
                     break;
@@ -443,17 +470,25 @@ int32 ProcessKey(int32 Key)
     {
         Result = KeyW;
     }
-    if(Key == KeyA && WasdKeyPressed[1] == true)
+    else if(Key == KeyA && WasdKeyPressed[1] == true)
     {
         Result = KeyA;
     }
-    if(Key == KeyS && WasdKeyPressed[2] == true)
+    else if(Key == KeyS && WasdKeyPressed[2] == true)
     {
         Result = KeyS;
     }
-    if(Key == KeyD && WasdKeyPressed[3] == true)
+    else if(Key == KeyD && WasdKeyPressed[3] == true)
     {
         Result = KeyD;
+    }
+    else if(Key == KeySpace && WasdKeyPressed[4] == true)
+    {
+        Result = KeySpace;
+    }
+    else if(Key == KeyShift && WasdKeyPressed[5] == true)
+    {
+        Result = KeyShift;
     }
 
     return Result;

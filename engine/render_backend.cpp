@@ -1325,22 +1325,34 @@ void UpdateCamera(camera *Camera)
     int32 APressed = ProcessKey(KeyA);
     int32 SPressed = ProcessKey(KeyS);
     int32 DPressed = ProcessKey(KeyD);
+    int32 SpacePressed = ProcessKey(KeySpace);
+    int32 ShiftPressed = ProcessKey(KeyShift);
+
+    float Speed = 8.0f;
 
     if(WPressed > -1)
     {
-        Camera->Position += Camera->Front + 0.02f * RenderBackend.DeltaTime;
+        Camera->Position += Camera->Front * (Speed * RenderBackend.DeltaTime);
     }
     if(SPressed > -1)
     {
-        Camera->Position -= Camera->Front + 0.02f * RenderBackend.DeltaTime;
+        Camera->Position -= Camera->Front * (Speed * RenderBackend.DeltaTime);
     }
     if(APressed > -1)
     {
-        Camera->Position -= Camera->Right + 0.02f * RenderBackend.DeltaTime;
+        Camera->Position -= Camera->Right * (Speed * RenderBackend.DeltaTime);
     }
     if(DPressed > -1)
     {
-        Camera->Position += Camera->Right + 0.02f * RenderBackend.DeltaTime;
+        Camera->Position += Camera->Right * (Speed * RenderBackend.DeltaTime);
+    }
+    if(SpacePressed > -1)
+    {
+        Camera->Position += Camera->Up * (Speed * RenderBackend.DeltaTime);
+    }
+    if(ShiftPressed > -1)
+    {
+        Camera->Position -= Camera->Up * (Speed * RenderBackend.DeltaTime);
     }
 }
 
