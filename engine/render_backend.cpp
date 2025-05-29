@@ -343,8 +343,8 @@ void InitializeRenderBackend(game_memory* GameMemory)
     std::string Error;
     std::string Warning;
 
-    bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/suzanne/Suzanne.gltf");
-    //bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/sponza/Sponza.gltf");
+    //bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/suzanne/Suzanne.gltf");
+    bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/sponza/Sponza.gltf");
 
     if (!Warning.empty())
     {
@@ -1193,8 +1193,8 @@ void InitializeRenderBackend(game_memory* GameMemory)
     vkFreeMemory(RenderBackend.Device, StagingIndexBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
-    //NOTE(Lyubomir): Create Uniform Buffers
-    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    //NOTE(Lyubomir): Create Uniform Bufferss
+    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.2f, 0.2f, 0.2f));
 
     RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
 
@@ -1281,7 +1281,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     RenderBackend.Camera->Right = glm::normalize(glm::cross(RenderBackend.Camera->Front, RenderBackend.Camera->Up));
     RenderBackend.Camera->AspectRatio = 45.0f;
     RenderBackend.Camera->NearPlane = 0.1f;
-    RenderBackend.Camera->FarPlane = 100.0f;
+    RenderBackend.Camera->FarPlane = 1000.0f;
     RenderBackend.Camera->Yaw = -90.0f;
     RenderBackend.Camera->Pitch = 0.0f;
     RenderBackend.Camera->Sensitivity = 0.1f;
@@ -1328,7 +1328,7 @@ void UpdateCamera(camera *Camera)
     int32 SpacePressed = ProcessKey(KeySpace);
     int32 ShiftPressed = ProcessKey(KeyShift);
 
-    float Speed = 8.0f;
+    float Speed = 18.0f;
 
     if(WPressed > -1)
     {
