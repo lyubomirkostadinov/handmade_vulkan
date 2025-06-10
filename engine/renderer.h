@@ -20,6 +20,11 @@ struct texture
     VkBuffer StagingTextureBuffer;
     VkDeviceMemory StagingTextureBufferMemory;
     void* TextureData;
+
+    VkImage Image;
+    VkDeviceMemory Memory;
+    VkImageView View;
+    VkSampler Sampler;
 };
 
 enum model_type

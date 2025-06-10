@@ -5,6 +5,7 @@
 #include "memory_arena.h"
 #include "platform.h"
 #include "vulkan/vulkan_core.h"
+#include <cstddef>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -37,6 +38,16 @@ struct camera
     float Sensitivity;
 };
 
+struct mesh_primitive
+{
+    size_t IndexOffset;
+    size_t IndexCount;
+    size_t VertexOffset;
+    size_t VertexCount;
+    int32 MaterialIndex;
+    int32 TextureIndex;
+};
+
 struct vertex
 {
     glm::vec3 VertexPosition;
@@ -57,6 +68,8 @@ uint32 NumIndices = 36;
 
 struct render_backend
 {
+    std::vector<mesh_primitive> SponzaSegments;
+
     VkInstance Instance;
     VkPhysicalDevice PhysicalDevice;
     VkDevice Device;
@@ -90,6 +103,8 @@ struct render_backend
     VkDescriptorPool DescriptorPool;
     VkDescriptorSetLayout DescriptorSetLayout;
 
+    std::vector<std::vector<VkDescriptorSet>> SegmentDescriptorSets;
+
     VkImage TextureImage;
     VkDeviceMemory TextureImageMemory;
     VkImageView TextureImageView;
@@ -102,8 +117,7 @@ struct render_backend
     buffer_group* BufferGroups[MAX_MODEL_TYPE];
 
     memory_arena GraphicsArena;
-    model* CubeModel;
-    model* CubeModel2;
+    model* SponzaModel;
 
     camera* Camera;
     float DeltaTime;

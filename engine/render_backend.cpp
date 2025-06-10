@@ -334,17 +334,16 @@ void InitializeRenderBackend(game_memory* GameMemory)
     InitializeArena(&RenderBackend.GraphicsArena, GameMemory->PermanentStorageSize - sizeof(game_memory),
                     (uint8 *)GameMemory->PermanentStorage + sizeof(game_memory));
 
-
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Load  GLTF Model
-    tinygltf::Model SuzanneModel;
+    tinygltf::Model SponzaGLTFModel;
 
     tinygltf::TinyGLTF Loader;
     std::string Error;
     std::string Warning;
 
     //bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/suzanne/Suzanne.gltf");
-    bool Result = Loader.LoadASCIIFromFile(&SuzanneModel, &Error, &Warning, "../resources/models/sponza/Sponza.gltf");
+    bool Result = Loader.LoadASCIIFromFile(&SponzaGLTFModel, &Error, &Warning, "../resources/models/sponza/Sponza.gltf");
 
     if (!Warning.empty())
     {
@@ -365,18 +364,18 @@ void InitializeRenderBackend(game_memory* GameMemory)
     size_t TotalIndexCount = 0;
 
     //NOTE(Lyubomir): Calculate Vertex Count
-    for (const tinygltf::Mesh& Mesh : SuzanneModel.meshes)
+    for (const tinygltf::Mesh& Mesh : SponzaGLTFModel.meshes)
     {
         for (const tinygltf::Primitive& Primitive : Mesh.primitives)
         {
             std::map<std::string, int>::const_iterator PositionIterator = Primitive.attributes.find("POSITION");
             if (PositionIterator != Primitive.attributes.end())
             {
-                const tinygltf::Accessor& PosAccessor = SuzanneModel.accessors[PositionIterator->second];
+                const tinygltf::Accessor& PosAccessor = SponzaGLTFModel.accessors[PositionIterator->second];
                 TotalVertexCount += PosAccessor.count;
             }
 
-            const tinygltf::Accessor& IndexAccessor = SuzanneModel.accessors[Primitive.indices];
+            const tinygltf::Accessor& IndexAccessor = SponzaGLTFModel.accessors[Primitive.indices];
             TotalIndexCount += IndexAccessor.count;
         }
     }
@@ -388,7 +387,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
     size_t IndexOffset = 0;
 
     //NOTE(Lyubomir): Fill data into arrays
-    for (const tinygltf::Mesh& Mesh : SuzanneModel.meshes)
+    for (const tinygltf::Mesh& Mesh : SponzaGLTFModel.meshes)
     {
         for (const tinygltf::Primitive& Primitive : Mesh.primitives)
         {
@@ -399,19 +398,19 @@ void InitializeRenderBackend(game_memory* GameMemory)
                 printf("POSITION attribute not found\n");
                 continue;
             }
-            const tinygltf::Accessor& PositionAccessor = SuzanneModel.accessors[PositionIterator->second];
-            const tinygltf::BufferView& PositionBufferView = SuzanneModel.bufferViews[PositionAccessor.bufferView];
-            const tinygltf::Buffer& PositionBuffer = SuzanneModel.buffers[PositionBufferView.buffer];
+            const tinygltf::Accessor& PositionAccessor = SponzaGLTFModel.accessors[PositionIterator->second];
+            const tinygltf::BufferView& PositionBufferView = SponzaGLTFModel.bufferViews[PositionAccessor.bufferView];
+            const tinygltf::Buffer& PositionBuffer = SponzaGLTFModel.buffers[PositionBufferView.buffer];
             const float* PositionData = reinterpret_cast<const float*>(&PositionBuffer.data[PositionBufferView.byteOffset + PositionAccessor.byteOffset]);
 
-            //NOTE(Lyubimir): Access texture coordinate
+            //NOTE(Lyubimir): Access texture coordinates
             std::map<std::string, int>::const_iterator TextureCoordinateIterator = Primitive.attributes.find("TEXCOORD_0");
             const float* TextureCoordinateData = nullptr;
             if (TextureCoordinateIterator != Primitive.attributes.end())
             {
-                const tinygltf::Accessor& TextureCoordinateAccessor = SuzanneModel.accessors[TextureCoordinateIterator->second];
-                const tinygltf::BufferView& TextureCoordinateBufferView = SuzanneModel.bufferViews[TextureCoordinateAccessor.bufferView];
-                const tinygltf::Buffer& TextureCoordinateBuffer = SuzanneModel.buffers[TextureCoordinateBufferView.buffer];
+                const tinygltf::Accessor& TextureCoordinateAccessor = SponzaGLTFModel.accessors[TextureCoordinateIterator->second];
+                const tinygltf::BufferView& TextureCoordinateBufferView = SponzaGLTFModel.bufferViews[TextureCoordinateAccessor.bufferView];
+                const tinygltf::Buffer& TextureCoordinateBuffer = SponzaGLTFModel.buffers[TextureCoordinateBufferView.buffer];
                 TextureCoordinateData = reinterpret_cast<const float*>(&TextureCoordinateBuffer.data[TextureCoordinateBufferView.byteOffset + TextureCoordinateAccessor.byteOffset]);
             }
 
@@ -427,9 +426,9 @@ void InitializeRenderBackend(game_memory* GameMemory)
             }
 
             //NOTE(Lyubimir): Access and fill indices
-            const tinygltf::Accessor& IndexAccessor = SuzanneModel.accessors[Primitive.indices];
-            const tinygltf::BufferView& IndexBufferView = SuzanneModel.bufferViews[IndexAccessor.bufferView];
-            const tinygltf::Buffer& IndexBuffer = SuzanneModel.buffers[IndexBufferView.buffer];
+            const tinygltf::Accessor& IndexAccessor = SponzaGLTFModel.accessors[Primitive.indices];
+            const tinygltf::BufferView& IndexBufferView = SponzaGLTFModel.bufferViews[IndexAccessor.bufferView];
+            const tinygltf::Buffer& IndexBuffer = SponzaGLTFModel.buffers[IndexBufferView.buffer];
 
             if (IndexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
             {
@@ -453,6 +452,26 @@ void InitializeRenderBackend(game_memory* GameMemory)
                 continue;
             }
 
+            mesh_primitive MeshPrimitive;
+            MeshPrimitive.IndexOffset = IndexOffset;
+            MeshPrimitive.IndexCount = IndexAccessor.count;
+            MeshPrimitive.VertexOffset = VertexOffset;
+            MeshPrimitive.VertexCount = PositionAccessor.count;
+            MeshPrimitive.MaterialIndex = Primitive.material;
+            MeshPrimitive.TextureIndex = 1;
+
+            if(Primitive.material >= 0)
+            {
+                const auto& Material = SponzaGLTFModel.materials[Primitive.material];
+                if(Material.pbrMetallicRoughness.baseColorTexture.index >= 0)
+                {
+                    int32 TextureIndex = Material.pbrMetallicRoughness.baseColorTexture.index;
+                    int32 ImageIndex = SponzaGLTFModel.textures[TextureIndex].source;
+                    MeshPrimitive.TextureIndex = ImageIndex;
+                }
+            }
+            RenderBackend.SponzaSegments.push_back(MeshPrimitive);
+
             VertexOffset += PositionAccessor.count;
             IndexOffset += IndexAccessor.count;
         }
@@ -460,44 +479,6 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     NumVertices = TotalVertexCount;
     NumIndices = TotalIndexCount;
-
-    //////////////////////////////////////////////////////////////////////////////////////////
-    //NOTE(Lyubomir): Load Cube Vertices
-
-    //Vertices[0].VertexPosition    =    glm::vec3(-0.5f, -0.5f, -0.5f);
-    //Vertices[0].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[0].TextureCoordinate =    glm::vec2(1.0, 0.0);
-    //Vertices[1].VertexPosition    =    glm::vec3(-0.5f,  0.5f, -0.5f);
-    //Vertices[1].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[1].TextureCoordinate =    glm::vec2(0.0, 0.0);
-    //Vertices[2].VertexPosition    =    glm::vec3(0.5f, 0.5f, -0.5f);
-    //Vertices[2].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[2].TextureCoordinate =    glm::vec2(0.0, 1.0);
-    //Vertices[3].VertexPosition    =    glm::vec3(0.5f, -0.5f, -0.5f);
-    //Vertices[3].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[3].TextureCoordinate =    glm::vec2(1.0, 1.0);
-    //Vertices[4].VertexPosition    =    glm::vec3(-0.5f, -0.5f,  0.5f);
-    //Vertices[4].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[4].TextureCoordinate =    glm::vec2(1.0, 0.0);
-    //Vertices[5].VertexPosition    =    glm::vec3(-0.5f, 0.5f, 0.5f);
-    //Vertices[5].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[5].TextureCoordinate =    glm::vec2(0.0, 0.0);
-    //Vertices[6].VertexPosition    =    glm::vec3(0.5f, 0.5f, 0.5f);
-    //Vertices[6].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[6].TextureCoordinate =    glm::vec2(0.0, 1.0);
-    //Vertices[7].VertexPosition    =    glm::vec3(0.5f, -0.5f, 0.5f);
-    //Vertices[7].VertexColor       =    glm::vec3(1.0, 0.0, 0.0);
-    //Vertices[7].TextureCoordinate =    glm::vec2(1.0, 1.0);
-
-    //uint32 Indices[NumIndices] =
-    //{
-    //    0, 1, 2, 0, 2, 3,
-    //    4, 6, 5, 4, 7, 6,
-    //    4, 5, 1, 4, 1, 0,
-    //    3, 2, 6, 3, 6, 7,
-    //    1, 5, 6, 1, 6, 2,
-    //    4, 0, 3, 4, 3, 7
-    //};
 
     VkVertexInputBindingDescription BindingDescription = {};
     BindingDescription.binding = 0;
@@ -1129,6 +1110,76 @@ void InitializeRenderBackend(game_memory* GameMemory)
         printf("Failed to create texture sampler!\n");
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    //NOTE(Lyubomir): Create All Sponza Textures
+
+    std::vector<texture> SponzaTextures(SponzaGLTFModel.images.size());
+
+    for (uint32 Index = 0; Index < SponzaGLTFModel.images.size(); ++Index)
+    {
+         auto& Texture = SponzaTextures[Index];
+         auto& Image = SponzaGLTFModel.images[Index];
+         int TextureWidth = 0, TextureHeight = 0, TextureChannels = 0;
+
+         unsigned char* Pixels = nullptr;
+         if (!Image.uri.empty())
+         {
+             std::string FullPath = std::string("../resources/models/sponza/") + Image.uri;
+             Pixels = stbi_load(FullPath.c_str(), &TextureWidth, &TextureHeight, &TextureChannels, STBI_rgb_alpha);
+         }
+         else if (!Image.image.empty())
+         {
+             TextureWidth = Image.width;
+             TextureHeight = Image.height;
+             TextureChannels = Image.component;
+             Pixels = (unsigned char*)malloc(TextureWidth * TextureHeight * 4); // RGBA out
+             memcpy(Pixels, Image.image.data(), TextureWidth * TextureHeight * 4); // assumes loaded as RGBA
+         }
+
+         if (!Pixels)
+         {
+             printf("Failed to load texture image %s!\n", Image.uri.c_str());
+             continue;
+         }
+
+         VkDeviceSize ImageSize = TextureWidth * TextureHeight * 4;
+
+         // STEP 1: Create staging buffer, copy in pixels (like before)
+         VkBuffer StagingBuffer;
+         VkDeviceMemory StagingBufferMemory;
+         CreateBuffer(ImageSize,
+                      VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                      StagingBuffer, StagingBufferMemory);
+
+         void* PixelData;
+         vkMapMemory(RenderBackend.Device, StagingBufferMemory, 0, ImageSize, 0, &PixelData);
+         memcpy(PixelData, Pixels, ImageSize);
+         vkUnmapMemory(RenderBackend.Device, StagingBufferMemory);
+
+         // STEP 2: Create Image (VK_FORMAT_R8G8B8A8_SRGB matches most Sponza images)
+         CreateImage(TextureWidth, TextureHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, Texture.Image, Texture.Memory);
+
+         // STEP 3: Copy buffer data into image (transition + copy)
+         TransitionImageLayout(Texture.Image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+         CopyBufferToImage(StagingBuffer, Texture.Image, TextureWidth, TextureHeight);
+         TransitionImageLayout(Texture.Image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+         // STEP 4: Create view
+         Texture.View = CreateImageView(Texture.Image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+
+         Texture.Sampler = RenderBackend.TextureSampler;
+         Texture.TextureWidth = TextureWidth;
+         Texture.TextureHeight = TextureHeight;
+
+         vkDestroyBuffer(RenderBackend.Device, StagingBuffer, nullptr);
+         vkFreeMemory(RenderBackend.Device, StagingBufferMemory, nullptr);
+
+         stbi_image_free(Pixels);
+     }
+
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Vertex Buffer
     for(uint32 Index; Index < MAX_MODEL_TYPE; ++Index)
@@ -1193,25 +1244,23 @@ void InitializeRenderBackend(game_memory* GameMemory)
     vkFreeMemory(RenderBackend.Device, StagingIndexBufferMemory, nullptr);
 
     //////////////////////////////////////////////////////////////////////////////////////////
-    //NOTE(Lyubomir): Create Uniform Bufferss
-    RenderBackend.CubeModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.2f, 0.2f, 0.2f));
-
-    RenderBackend.CubeModel2 = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(4.0f, 0.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.3f, 1.3f, 1.3f));
+    //NOTE(Lyubomir): Create Uniform Buffers
+    RenderBackend.SponzaModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.2f, 0.2f, 0.2f));
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Pool
     VkDescriptorPoolSize DescriptorPoolSize[2] = {};
     DescriptorPoolSize[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    DescriptorPoolSize[0].descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
+    DescriptorPoolSize[0].descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * RenderBackend.SponzaSegments.size() + MAX_FRAMES_IN_FLIGHT * 2);
     DescriptorPoolSize[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    DescriptorPoolSize[1].descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
+    DescriptorPoolSize[1].descriptorCount = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * RenderBackend.SponzaSegments.size() + MAX_FRAMES_IN_FLIGHT * 2);
 
     VkDescriptorPoolCreateInfo DescriptorPoolInfo = {};
     DescriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     DescriptorPoolInfo.poolSizeCount = ArrayCount(DescriptorPoolSize);
     DescriptorPoolInfo.pPoolSizes = DescriptorPoolSize;
     //TODO(Lyubomir): Dynamic Binding for uniform buffers so we can reuse 1 descriptor set layout for many uniform buffers?
-    DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * 2);
+    DescriptorPoolInfo.maxSets = static_cast<uint32>(MAX_FRAMES_IN_FLIGHT * RenderBackend.SponzaSegments.size() + MAX_FRAMES_IN_FLIGHT * 2);
 
     if (vkCreateDescriptorPool(RenderBackend.Device, &DescriptorPoolInfo, nullptr, &RenderBackend.DescriptorPool) != VK_SUCCESS)
     {
@@ -1220,19 +1269,68 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Sets
-    RenderBackend.CubeModel->DescriptorSetLayouts.resize(MAX_FRAMES_IN_FLIGHT);
-    RenderBackend.CubeModel2->DescriptorSetLayouts.resize(MAX_FRAMES_IN_FLIGHT);
+    RenderBackend.SponzaModel->DescriptorSetLayouts.resize(MAX_FRAMES_IN_FLIGHT);
     for(int32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
-        RenderBackend.CubeModel->DescriptorSetLayouts[Index] = RenderBackend.DescriptorSetLayout;
-        RenderBackend.CubeModel2->DescriptorSetLayouts[Index] = RenderBackend.DescriptorSetLayout;
+        RenderBackend.SponzaModel->DescriptorSetLayouts[Index] = RenderBackend.DescriptorSetLayout;
     }
 
-    model* CubeModel = RenderBackend.CubeModel;
-    CreateDescriptorSets(&RenderBackend, &CubeModel->DescriptorSetLayouts, &CubeModel->DescriptorSets, &RenderBackend.DescriptorPool, &CubeModel->UniformBuffers);
+    model* SponzaModel = RenderBackend.SponzaModel;
+    CreateDescriptorSets(&RenderBackend, &SponzaModel->DescriptorSetLayouts, &SponzaModel->DescriptorSets, &RenderBackend.DescriptorPool, &SponzaModel->UniformBuffers);
 
-    model* CubeModel2 = RenderBackend.CubeModel2;
-    CreateDescriptorSets(&RenderBackend, &CubeModel->DescriptorSetLayouts, &CubeModel2->DescriptorSets, &RenderBackend.DescriptorPool, &CubeModel2->UniformBuffers);
+    RenderBackend.SegmentDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    for (uint32 Frame = 0; Frame < MAX_FRAMES_IN_FLIGHT; ++Frame)
+    {
+        RenderBackend.SegmentDescriptorSets[Frame].resize(RenderBackend.SponzaSegments.size());
+        std::vector<VkDescriptorSetLayout> Layouts(RenderBackend.SponzaSegments.size(), RenderBackend.DescriptorSetLayout);
+        VkDescriptorSetAllocateInfo AllocInfo = {};
+        AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        AllocInfo.descriptorPool = RenderBackend.DescriptorPool;
+        AllocInfo.descriptorSetCount = (uint32)Layouts.size();
+        AllocInfo.pSetLayouts = Layouts.data();
+
+        VkResult Result = vkAllocateDescriptorSets(RenderBackend.Device, &AllocInfo, RenderBackend.SegmentDescriptorSets[Frame].data());
+        if (Result != VK_SUCCESS)
+        {
+            printf("Failed to allocate Sponza segment descriptor sets!\n");
+        }
+
+        // Now write each set with the correct texture image/sampler
+        for (uint32 Segment = 0; Segment < RenderBackend.SponzaSegments.size(); ++Segment)
+        {
+            mesh_primitive& MeshPrimitive = RenderBackend.SponzaSegments[Segment];
+            int32 ImageIndex = MeshPrimitive.TextureIndex;
+            // (Check that image_idx is valid)
+
+            VkDescriptorBufferInfo BufferInfo = {};
+            BufferInfo.buffer = RenderBackend.SponzaModel->UniformBuffers[Frame];
+            BufferInfo.offset = 0;
+            BufferInfo.range = sizeof(uniform_buffer);
+
+            VkDescriptorImageInfo ImageInfo = {};
+            ImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            ImageInfo.imageView = SponzaTextures[ImageIndex].View;
+            ImageInfo.sampler = SponzaTextures[ImageIndex].Sampler; // usually all share one sampler
+
+            VkWriteDescriptorSet DescWrites[2] = {};
+            // UBO
+            DescWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            DescWrites[0].dstSet = RenderBackend.SegmentDescriptorSets[Frame][Segment];
+            DescWrites[0].dstBinding = 0;
+            DescWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            DescWrites[0].descriptorCount = 1;
+            DescWrites[0].pBufferInfo = &BufferInfo;
+            // Sampler
+            DescWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            DescWrites[1].dstSet = RenderBackend.SegmentDescriptorSets[Frame][Segment];
+            DescWrites[1].dstBinding = 1;
+            DescWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            DescWrites[1].descriptorCount = 1;
+            DescWrites[1].pImageInfo = &ImageInfo;
+
+            vkUpdateDescriptorSets(RenderBackend.Device, 2, DescWrites, 0, nullptr);
+        }
+    }
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Command Buffers
@@ -1370,8 +1468,7 @@ void Render(game_memory* GameMemory)
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Update Uniform Buffers
 
-    UpdateModel(RenderBackend.CubeModel, RenderBackend.Camera);
-    UpdateModel(RenderBackend.CubeModel2, RenderBackend.Camera);
+    UpdateModel(RenderBackend.SponzaModel, RenderBackend.Camera);
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Reset Fences And Command Buffer
@@ -1439,17 +1536,31 @@ void Render(game_memory* GameMemory)
 
     vkCmdBindIndexBuffer(RenderBackend.CommandBuffers[CurrentFrame], RenderBackend.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+    /*
     vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            RenderBackend.PipelineLayout, 0, 1, &RenderBackend.CubeModel->DescriptorSets[CurrentFrame], 0, nullptr);
+                            RenderBackend.PipelineLayout, 0, 1, &RenderBackend.SponzaModel->DescriptorSets[CurrentFrame], 0, nullptr);
 
     vkCmdDrawIndexed(RenderBackend.CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
+    */
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //NOTE(Lyubomir): Draw Second Cube
+    for (uint32 Segment = 0; Segment < RenderBackend.SponzaSegments.size(); ++Segment)
+    {
+        mesh_primitive& Primitive = RenderBackend.SponzaSegments[Segment];
+        // Bind the segment's unique descriptor set: (one per segment per frame)
+        vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame],
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                RenderBackend.PipelineLayout,
+                                0, 1,
+                                &RenderBackend.SegmentDescriptorSets[CurrentFrame][Segment],
+                                0, nullptr);
 
-    vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, RenderBackend.PipelineLayout, 0, 1, &RenderBackend.CubeModel2->DescriptorSets[CurrentFrame], 0, nullptr);
-
-    vkCmdDrawIndexed(RenderBackend.CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
+        vkCmdDrawIndexed(RenderBackend.CommandBuffers[CurrentFrame],
+                         Primitive.IndexCount,  // number of indices for this mesh segment
+                         1,                // instance count
+                         Primitive.IndexOffset, // first index
+                         0,// vertex offset (added to each index)
+                         0);               // first instance
+    }
 
     vkCmdEndRenderPass(RenderBackend.CommandBuffers[CurrentFrame]);
 
@@ -1542,8 +1653,8 @@ void ShutdownRenderBackend()
 
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
-        vkDestroyBuffer(RenderBackend.Device, RenderBackend.CubeModel->UniformBuffers[Index], nullptr);
-        vkFreeMemory(RenderBackend.Device, RenderBackend.CubeModel->UniformBuffersMemory[Index], nullptr);
+        vkDestroyBuffer(RenderBackend.Device, RenderBackend.SponzaModel->UniformBuffers[Index], nullptr);
+        vkFreeMemory(RenderBackend.Device, RenderBackend.SponzaModel->UniformBuffersMemory[Index], nullptr);
     }
 
     vkDestroyDescriptorPool(RenderBackend.Device, RenderBackend.DescriptorPool, nullptr);
