@@ -31,8 +31,8 @@ enum model_type
 {
     TRIANGLE,
     CUBE,
-    SUSANNE,
-    //TODO: Model Types
+    SUZANNE,
+    //TODO(Lyubomir): Model Types
     MAX_MODEL_TYPE
 };
 

@@ -601,7 +601,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Pick Physical Device
-    uint32_t DeviceCount = 0;
+    uint32 DeviceCount = 0;
     vkEnumeratePhysicalDevices(RenderBackend.Instance, &DeviceCount, nullptr);
     if (DeviceCount == 0)
     {
@@ -1044,7 +1044,6 @@ void InitializeRenderBackend(game_memory* GameMemory)
     //NOTE(Lyubomir): Create Texture Image
     texture TestTexture;
     stbi_uc* Pixels = stbi_load("../resources/models/suzanne/Suzanne_BaseColor.png", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
-    //stbi_uc* Pixels = stbi_load("../resources/models/sponza/5792855332885324923.jpg", &TestTexture.TextureWidth, &TestTexture.TextureHeight, &TestTexture.TextureChannels, STBI_rgb_alpha);
     VkDeviceSize ImageSize = TestTexture.TextureWidth * TestTexture.TextureHeight * 4;
 
     if (!Pixels)
@@ -1132,8 +1131,8 @@ void InitializeRenderBackend(game_memory* GameMemory)
              TextureWidth = Image.width;
              TextureHeight = Image.height;
              TextureChannels = Image.component;
-             Pixels = (unsigned char*)malloc(TextureWidth * TextureHeight * 4); // RGBA out
-             memcpy(Pixels, Image.image.data(), TextureWidth * TextureHeight * 4); // assumes loaded as RGBA
+             Pixels = (unsigned char*)malloc(TextureWidth * TextureHeight * 4);
+             memcpy(Pixels, Image.image.data(), TextureWidth * TextureHeight * 4);
          }
 
          if (!Pixels)
@@ -1144,7 +1143,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
          VkDeviceSize ImageSize = TextureWidth * TextureHeight * 4;
 
-         // STEP 1: Create staging buffer, copy in pixels (like before)
+         //NOTE(Lyubomir): Create staging buffer, copy in pixels
          VkBuffer StagingBuffer;
          VkDeviceMemory StagingBufferMemory;
          CreateBuffer(ImageSize,
@@ -1157,17 +1156,17 @@ void InitializeRenderBackend(game_memory* GameMemory)
          memcpy(PixelData, Pixels, ImageSize);
          vkUnmapMemory(RenderBackend.Device, StagingBufferMemory);
 
-         // STEP 2: Create Image (VK_FORMAT_R8G8B8A8_SRGB matches most Sponza images)
+         //NOTE(Lyubomir): Create Image (VK_FORMAT_R8G8B8A8_SRGB matches most Sponza images)
          CreateImage(TextureWidth, TextureHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, Texture.Image, Texture.Memory);
 
-         // STEP 3: Copy buffer data into image (transition + copy)
+         //NOTE(Lyubomir): Copy buffer data into image (transition + copy)
          TransitionImageLayout(Texture.Image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
          CopyBufferToImage(StagingBuffer, Texture.Image, TextureWidth, TextureHeight);
          TransitionImageLayout(Texture.Image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-         // STEP 4: Create view
+         //NOTE(Lyubomir): Create view
          Texture.View = CreateImageView(Texture.Image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
          Texture.Sampler = RenderBackend.TextureSampler;
@@ -1245,7 +1244,7 @@ void InitializeRenderBackend(game_memory* GameMemory)
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Uniform Buffers
-    RenderBackend.SponzaModel = CreateModel(&RenderBackend.GraphicsArena, SUSANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.2f, 0.2f, 0.2f));
+    RenderBackend.SponzaModel = CreateModel(&RenderBackend.GraphicsArena, SUZANNE, glm::vec3(0.0f, 0.0f, -10.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.2f, 0.2f, 0.2f));
 
     //////////////////////////////////////////////////////////////////////////////////////////
     //NOTE(Lyubomir): Create Descriptor Pool
@@ -1295,12 +1294,10 @@ void InitializeRenderBackend(game_memory* GameMemory)
             printf("Failed to allocate Sponza segment descriptor sets!\n");
         }
 
-        // Now write each set with the correct texture image/sampler
         for (uint32 Segment = 0; Segment < RenderBackend.SponzaSegments.size(); ++Segment)
         {
             mesh_primitive& MeshPrimitive = RenderBackend.SponzaSegments[Segment];
             int32 ImageIndex = MeshPrimitive.TextureIndex;
-            // (Check that image_idx is valid)
 
             VkDescriptorBufferInfo BufferInfo = {};
             BufferInfo.buffer = RenderBackend.SponzaModel->UniformBuffers[Frame];
@@ -1310,17 +1307,17 @@ void InitializeRenderBackend(game_memory* GameMemory)
             VkDescriptorImageInfo ImageInfo = {};
             ImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             ImageInfo.imageView = SponzaTextures[ImageIndex].View;
-            ImageInfo.sampler = SponzaTextures[ImageIndex].Sampler; // usually all share one sampler
+            ImageInfo.sampler = SponzaTextures[ImageIndex].Sampler;
 
             VkWriteDescriptorSet DescWrites[2] = {};
-            // UBO
+            //NOTE(Lyubomir): UBO
             DescWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             DescWrites[0].dstSet = RenderBackend.SegmentDescriptorSets[Frame][Segment];
             DescWrites[0].dstBinding = 0;
             DescWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             DescWrites[0].descriptorCount = 1;
             DescWrites[0].pBufferInfo = &BufferInfo;
-            // Sampler
+            //NOTE(Lyubomir): Sampler
             DescWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             DescWrites[1].dstSet = RenderBackend.SegmentDescriptorSets[Frame][Segment];
             DescWrites[1].dstBinding = 1;
@@ -1391,7 +1388,6 @@ void UpdateCameraVectors(camera* Camera)
     Camera->Front.y = sin(glm::radians(Camera->Pitch));
     Camera->Front.z = sin(glm::radians(Camera->Yaw)) * cos(glm::radians(Camera->Pitch));
 
-    // Normalize the vectors
     Camera->Front = glm::normalize(Camera->Front);
     Camera->Right = glm::normalize(cross(Camera->Front, {0.0f, 1.0f, 0.0f}));
     Camera->Up = glm::cross(Camera->Right, Camera->Front);
@@ -1536,17 +1532,10 @@ void Render(game_memory* GameMemory)
 
     vkCmdBindIndexBuffer(RenderBackend.CommandBuffers[CurrentFrame], RenderBackend.IndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-    /*
-    vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            RenderBackend.PipelineLayout, 0, 1, &RenderBackend.SponzaModel->DescriptorSets[CurrentFrame], 0, nullptr);
-
-    vkCmdDrawIndexed(RenderBackend.CommandBuffers[CurrentFrame], NumIndices, 1, 0, 0, 0);
-    */
-
     for (uint32 Segment = 0; Segment < RenderBackend.SponzaSegments.size(); ++Segment)
     {
         mesh_primitive& Primitive = RenderBackend.SponzaSegments[Segment];
-        // Bind the segment's unique descriptor set: (one per segment per frame)
+
         vkCmdBindDescriptorSets(RenderBackend.CommandBuffers[CurrentFrame],
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 RenderBackend.PipelineLayout,
@@ -1555,11 +1544,11 @@ void Render(game_memory* GameMemory)
                                 0, nullptr);
 
         vkCmdDrawIndexed(RenderBackend.CommandBuffers[CurrentFrame],
-                         Primitive.IndexCount,  // number of indices for this mesh segment
-                         1,                // instance count
-                         Primitive.IndexOffset, // first index
-                         0,// vertex offset (added to each index)
-                         0);               // first instance
+                         Primitive.IndexCount,
+                         1,
+                         Primitive.IndexOffset,
+                         0,
+                         0);
     }
 
     vkCmdEndRenderPass(RenderBackend.CommandBuffers[CurrentFrame]);
@@ -1650,6 +1639,8 @@ void ShutdownRenderBackend()
 
     vkDestroyImage(RenderBackend.Device, RenderBackend.TextureImage, nullptr);
     vkFreeMemory(RenderBackend.Device, RenderBackend.TextureImageMemory, nullptr);
+
+    //TODO(Lyubomir): Destroy Sponza Textures!
 
     for (uint32 Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
     {
