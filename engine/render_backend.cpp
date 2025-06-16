@@ -10,6 +10,7 @@
 
 buffer_group* GetModelBufferGroup(model_type ModelType)
 {
+    //TODO(Lyubomir): What do we want to do here ???
     buffer_group* Result = RenderBackend.BufferGroups[ModelType];
 
     switch(ModelType)

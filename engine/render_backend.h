@@ -1,4 +1,3 @@
-
 #pragma once
 
 //TODO(Lyubomir) Extract stuff to Defines.h
@@ -73,7 +72,7 @@ struct camera
 {
     glm::vec3 Position;
     glm::vec3 Front;
-     glm::vec3 Right;
+    glm::vec3 Right;
     glm::vec3 Up;
     float Fov;
     float AspectRatio;
@@ -103,7 +102,6 @@ struct vertex
 
 struct uniform_buffer
 {
-    //TODO(Lyubomir): Camera
     glm::mat4 ModelMatrix;
     glm::mat4 ViewMatrix;
     glm::mat4 ProjectionMatrix;
