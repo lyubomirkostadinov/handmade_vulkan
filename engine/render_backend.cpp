@@ -1,14 +1,76 @@
 #include "render_backend.h"
 #include "memory_arena.h"
 #include "platform.h"
-#include "renderer.cpp"
-#include "renderer.h"
 #include "vulkan/vulkan_core.h"
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../libs/tiny_gltf.h"
+
+buffer_group* GetModelBufferGroup(model_type ModelType)
+{
+    buffer_group* Result = RenderBackend.BufferGroups[ModelType];
+
+    switch(ModelType)
+    {
+        case TRIANGLE:
+
+            break;
+        case CUBE:
+
+            break;
+        case SUZANNE:
+            Result->VertexBuffer = &RenderBackend.VertexBuffer;
+            Result->IndexBuffer = &RenderBackend.IndexBuffer;
+            break;
+        default:
+
+            break;
+    }
+    Assert(Result->VertexBuffer != nullptr);
+    return Result;
+}
+
+model* CreateModel(memory_arena* Arena, model_type ModelType, glm::vec3 Position, glm::vec3 Rotation, glm::vec3 Scale)
+{
+    model* Result = nullptr;
+
+    model TempModel;
+    TempModel.ModelType = ModelType;
+    TempModel.Position = Position;
+    TempModel.Rotation = Rotation;
+    TempModel.Scale = Scale;
+    TempModel.ModelBuffers = GetModelBufferGroup(ModelType);
+
+    Result = PushStruct(Arena, model);
+    memcpy(Result, &TempModel, sizeof(model));
+
+    CreateFrameUniformBuffers(&RenderBackend, &Result->UniformBuffers, &Result->UniformBuffersMemory, &Result->UniformBuffersMapped);
+
+    return Result;
+}
+
+void UpdateModel(model* Model, camera* Camera)
+{
+    glm::mat4 ModelMatrix = glm::mat4(1.0f);
+    ModelMatrix = glm::translate(ModelMatrix, Model->Position); // position
+    //ModelMatrix = glm::rotate(ModelMatrix, glm::radians(90.0f), Model->Rotation); // rotation
+    ModelMatrix = glm::scale(ModelMatrix, Model->Scale); // scale
+
+    glm::vec3 CameraFrontDirection = Camera->Position + Camera->Front;
+
+    uniform_buffer UniformBuffer = {};
+    UniformBuffer.ModelMatrix = ModelMatrix;
+    UniformBuffer.ViewMatrix = glm::lookAt(Camera->Position, CameraFrontDirection, Camera->Up);
+    UniformBuffer.ProjectionMatrix = glm::perspective(glm::radians(Camera->AspectRatio),
+                                     (float) RenderBackend.SwapChainExtent.width /
+                                     (float) RenderBackend.SwapChainExtent.height,
+                                     Camera->NearPlane, Camera->FarPlane);
+    UniformBuffer.ProjectionMatrix[1][1] *= -1;
+
+    memcpy(Model->UniformBuffersMapped[CurrentFrame], &UniformBuffer, sizeof(UniformBuffer));
+}
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT MessageSeverity,
                                                     VkDebugUtilsMessageTypeFlagsEXT MessageType,
@@ -27,7 +89,7 @@ uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties)
         VkPhysicalDeviceMemoryProperties MemoryProperties;
         vkGetPhysicalDeviceMemoryProperties(RenderBackend.PhysicalDevice, &MemoryProperties);
 
-        for (uint32_t Index = 0; Index < MemoryProperties.memoryTypeCount; ++Index)
+        for (uint32 Index = 0; Index < MemoryProperties.memoryTypeCount; ++Index)
         {
             if ((TypeFilter & (1 << Index)) && (MemoryProperties.memoryTypes[Index].propertyFlags & Properties) == Properties)
             {

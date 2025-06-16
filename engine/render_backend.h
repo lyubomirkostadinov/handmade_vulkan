@@ -12,16 +12,62 @@
 #include "../libs/glm/glm.hpp"
 #include "../libs/glm/gtc/matrix_transform.hpp"
 
-#include "renderer.h"
-
-//TODO(Lyubomir): Stay away from STD!
+#include "memory_arena.h"
+#include <CoreVideo/CoreVideo.h>
 #include <chrono>
 #include <vector>
+//TODO(Lyubomir): Stay away from STD!
 
 #define MAX_FRAMES_IN_FLIGHT 2
 uint32 CurrentFrame = 0;
 
-struct model;
+struct buffer_group
+{
+    VkBuffer* VertexBuffer;
+    VkBuffer* IndexBuffer;
+};
+
+struct texture
+{
+    int32 TextureWidth;
+    int32 TextureHeight;
+    int32 TextureChannels;
+
+    VkBuffer StagingTextureBuffer;
+    VkDeviceMemory StagingTextureBufferMemory;
+    void* TextureData;
+
+    VkImage Image;
+    VkDeviceMemory Memory;
+    VkImageView View;
+    VkSampler Sampler;
+};
+
+enum model_type
+{
+    TRIANGLE,
+    CUBE,
+    SUZANNE,
+    //TODO(Lyubomir): Model Types
+    MAX_MODEL_TYPE
+};
+
+struct model
+{
+    glm::vec3 Position;
+    glm::vec3 Rotation;
+    glm::vec3 Scale;
+
+    model_type ModelType;
+    buffer_group* ModelBuffers;
+
+    std::vector<VkBuffer> UniformBuffers;
+    std::vector<VkDeviceMemory> UniformBuffersMemory;
+    std::vector<void*> UniformBuffersMapped;
+
+    std::vector<VkDescriptorSet> DescriptorSets;
+    std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
+};
 
 struct camera
 {
@@ -122,6 +168,12 @@ struct render_backend
     camera* Camera;
     float DeltaTime;
 } RenderBackend;
+
+buffer_group* GetModelBufferGroup(model_type ModelType);
+
+model* CreateModel(memory_arena* Arena, model_type ModelType,  glm::vec3 Position, glm::vec3 Rotation, glm::vec3 Scale);
+
+void UpdateModel(model* Model, camera* Camera);
 
 uint32 FindMemoryType(uint32 TypeFilter, VkMemoryPropertyFlags Properties);
 
